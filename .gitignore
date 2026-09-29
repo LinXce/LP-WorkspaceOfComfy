@@ -1,0 +1,68 @@
+# ---------- 依赖 ----------
+node_modules/
+.pnpm-store/
+
+# ---------- 构建产物 ----------
+/out
+/dist
+/dist-electron
+/release
+*.tsbuildinfo
+*.blockmap
+
+# 注意：build/ 是 electron-builder 的 buildResources 目录，图标等资源必须入库，不要忽略
+
+# ---------- 缓存 ----------
+/.vite
+/.cache
+/.turbo
+/.eslintcache
+/.stylelintcache
+
+# ---------- 日志 ----------
+/logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- 环境变量 ----------
+.env
+.env.*
+!.env.example
+
+# ---------- 测试与覆盖率 ----------
+/coverage
+/.nyc_output
+*.lcov
+
+# ---------- 编辑器 ----------
+/.vscode/*
+!/.vscode/extensions.json
+!/.vscode/settings.json
+/.idea
+/.history
+*.swp
+*.swo
+*~
+
+# ---------- 操作系统 ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ---------- 本地工具状态 ----------
+.commandcode/
+
+# ---------- 杂项 ----------
+*.local
+/tmp
+/temp

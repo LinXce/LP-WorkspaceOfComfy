@@ -1,0 +1,39 @@
+appId: com.linxce.comfy-workspace
+productName: ComfyUI Workspace
+copyright: Copyright © 2026 LP
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+  - '!node_modules/**/{test,__tests__,tests,example,examples,docs,doc}/**'
+asarUnpack:
+  - resources/**
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  artifactName: ComfyUI-Workspace-${version}-setup.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ComfyUI 工作台
+portable:
+  artifactName: ComfyUI-Workspace-${version}-portable.${ext}
+mac:
+  icon: build/icon.png
+  target: [dmg]
+  category: public.app-category.graphics-design
+linux:
+  icon: build/icon.png
+  target: [AppImage]
+  category: Graphics
+npmRebuild: true

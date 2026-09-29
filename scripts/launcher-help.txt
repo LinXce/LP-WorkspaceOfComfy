@@ -1,0 +1,12 @@
+ComfyUI 工作台 · 启动器
+
+  start.bat              安装依赖 / 构建 / 启动（默认）
+  start.bat --dev        开发模式，带热更新
+  start.bat --debug      前台启动并把日志打在控制台
+  start.bat --rebuild    重装依赖并重新构建
+  start.bat --exe        打包成单文件 exe，输出到 release\
+
+  首次运行会自动执行 npm install 与 npm run build，
+  之后就只做启动。也可以直接双击 start.bat。
+
+  Linux / macOS 用同名的 ./start.sh，参数一致。
