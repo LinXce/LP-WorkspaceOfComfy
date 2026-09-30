@@ -142,17 +142,24 @@ export function Select({
   className?: string
   ariaLabel?: string
 }): React.JSX.Element {
+  const selectedLabel = options.find((option) => option.value === value)?.label
+
   return (
     <RSelect.Root value={value} onValueChange={onChange}>
       <RSelect.Trigger
         aria-label={ariaLabel}
+        // 名字太长时截断成省略号，悬停看全称
+        title={selectedLabel}
         className={cn(
           'field t-fast flex h-8 items-center justify-between gap-2 px-2.5 text-[13px]',
-          'data-[placeholder]:text-ink-faint',
           className
         )}
       >
-        <RSelect.Value placeholder={placeholder} />
+        {/* 不用 RSelect.Value：它会把 className 丢掉（只透传 style），
+            截断样式挂不上去。自己渲染一个 span，顺便管占位色。 */}
+        <span className={cn('min-w-0 flex-1 truncate', !selectedLabel && 'text-ink-faint')}>
+          {selectedLabel ?? placeholder ?? ''}
+        </span>
         <RSelect.Icon>
           <ChevronDown size={14} className="text-ink-faint" />
         </RSelect.Icon>
@@ -161,16 +168,19 @@ export function Select({
         <RSelect.Content
           position="popper"
           sideOffset={4}
-          className="glass-strong z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-panel bg-elevated"
+          className="glass-strong z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] max-w-[min(440px,90vw)] overflow-hidden rounded-panel bg-elevated"
         >
           <RSelect.Viewport className="p-1">
             {options.map((option) => (
               <RSelect.Item
                 key={option.value}
                 value={option.value}
+                title={option.label}
                 className="t-fast flex h-7 cursor-default select-none items-center justify-between gap-3 rounded-pill px-3 text-[13px] text-ink-soft outline-none data-[highlighted]:bg-hover data-[highlighted]:text-ink"
               >
-                <RSelect.ItemText>{option.label}</RSelect.ItemText>
+                <RSelect.ItemText className="min-w-0 truncate">
+                  {option.label}
+                </RSelect.ItemText>
                 <RSelect.ItemIndicator>
                   <Check size={13} className="text-accent" />
                 </RSelect.ItemIndicator>

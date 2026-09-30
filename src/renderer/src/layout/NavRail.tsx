@@ -30,11 +30,22 @@ export const RAIL_ITEMS: RailItem[] = [
   { id: 'settings', label: '设置', icon: SlidersHorizontal, hint: 'Ctrl+6' }
 ]
 
+/**
+ * 导航项尺寸。高度和间距用常量而不是 Tailwind 类，
+ * 因为下面那块滑动高亮要按这两个数算位移，必须是同一个来源。
+ */
+const ITEM_HEIGHT = 52
+const ITEM_GAP = 4
+
 export function NavRail(): React.JSX.Element {
   const view = useWorkspace((s) => s.view)
   const setView = useWorkspace((s) => s.setView)
   const appVersion = useWorkspace((s) => s.appVersion)
   const pushToast = useWorkspace((s) => s.pushToast)
+  const activeIndex = Math.max(
+    RAIL_ITEMS.findIndex((item) => item.id === view),
+    0
+  )
 
   return (
     <nav
@@ -49,7 +60,20 @@ export function NavRail(): React.JSX.Element {
         </Tooltip>
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="relative grid" style={{ gap: ITEM_GAP }}>
+        {/* 选中高亮是一整块，切换时滑过去而不是原地闪一下；
+            最左边那根柠檬绿竖条跟着一起走 */}
+        <span
+          aria-hidden
+          className="rail-active-glass t-base pointer-events-none absolute inset-x-0 top-0 rounded-r-panel"
+          style={{
+            height: ITEM_HEIGHT,
+            transform: `translateY(${activeIndex * (ITEM_HEIGHT + ITEM_GAP)}px)`
+          }}
+        >
+          <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 bg-signal" />
+        </span>
+
         {RAIL_ITEMS.map((item) => {
           const active = view === item.id
           const Icon = item.icon
@@ -64,20 +88,14 @@ export function NavRail(): React.JSX.Element {
                 type="button"
                 aria-current={active ? 'page' : undefined}
                 onClick={() => setView(item.id)}
+                style={{ height: ITEM_HEIGHT }}
                 className={cn(
-                  't-fast relative flex h-13 flex-col items-center justify-center gap-1 rounded-r-panel outline-offset-[-3px]',
+                  't-base relative z-10 flex flex-col items-center justify-center gap-1 rounded-r-panel outline-offset-[-3px]',
                   active
-                    ? 'rail-active-glass text-ink-rail-strong'
+                    ? 'text-ink-rail-strong'
                     : 'text-ink-rail hover:bg-white/15 hover:text-ink-rail-strong'
                 )}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    't-fast absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 bg-signal',
-                    active ? 'opacity-100' : 'opacity-0'
-                  )}
-                />
                 <Icon size={19} strokeWidth={active ? 2.1 : 1.8} />
                 <span className="text-[10px] leading-none tracking-tight">{item.label}</span>
               </button>

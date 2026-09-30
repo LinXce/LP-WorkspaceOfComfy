@@ -46,7 +46,6 @@
   --radius-control: var(--r-control);
   --radius-tile: var(--r-tile);
   --radius-panel: var(--r-panel);
-  --radius-frame: var(--r-frame);
   --radius-pill: var(--r-pill);
 
   --text-2xs: 11px;
@@ -111,11 +110,9 @@
     color: var(--ink-faint);
   }
 
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scroll-thumb) transparent;
-  }
-
+  /* 这里不要写 scrollbar-width / scrollbar-color：
+     Chromium 121 起，只要这两个标准属性不是 auto，就会**整个忽略**
+     ::-webkit-scrollbar 系列伪元素，下面那套圆角滚动条会失效。 */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;

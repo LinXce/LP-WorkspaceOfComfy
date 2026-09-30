@@ -46,11 +46,13 @@ function createWindow(): void {
     minHeight: 700,
     show: false,
     frame: false,
-    // 窗口本身透明，圆角交给页面里的外框决定，
-    // 否则方角窗口会在圆角外露出一圈底色。
-    transparent: true,
-    hasShadow: false,
-    backgroundColor: '#00000000',
+    // 面板铺满窗口，不再自己留边距画投影：
+    // CSS 阴影画不到窗口外面，留多少边距就被裁多少，还会把缩放热区推到面板之外。
+    // 窗口阴影与圆角交给系统，缩放热区就是窗口边缘 = 面板边缘。
+    transparent: false,
+    hasShadow: true,
+    // 画布色（tokens.css 的 --bg-canvas），避免启动瞬间闪一下白底
+    backgroundColor: '#0D131A',
     title: 'ComfyUI 工作台',
     ...(existsSync(devIcon) ? { icon: devIcon } : {}),
     webPreferences: {

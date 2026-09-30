@@ -26,7 +26,8 @@ const keepTemp = process.argv.includes('--keep')
 
 const sandbox = join(tmpdir(), `comfy-smoke-${Date.now()}`)
 const userData = join(sandbox, 'userData')
-const images = join(sandbox, 'images')
+// 故意起一个长名字：用来验证筛选框会把超长数据集名截断而不是换行
+const images = join(sandbox, 'kzmyonon-krea2-v1-long-dataset-name')
 
 // ---------------------------------------------------------------- 测试基建
 
@@ -270,7 +271,7 @@ async function main() {
 
   await step('应用启动 / 窗口渲染', async () => {
     const info = await evalJs(`(() => {
-      const shell = document.querySelector('#root > div > div')
+      const shell = document.querySelector('#root > div')
       const rail = document.querySelector('nav[aria-label="主导航"]')
       const items = [...rail.querySelectorAll('button')].filter(
         (b) => b.getAttribute('aria-label') !== '帮助与快捷键'
@@ -399,6 +400,31 @@ async function main() {
     )
     if (tabs.length !== 3) throw new Error(`应有 3 个子页，实际 ${tabs.length}`)
     return tabs.join(' / ')
+  })
+
+  await step('数据集筛选超出长度会截断、悬停看全称', async () => {
+    const select = await evalJs(`(() => {
+      const trigger = document.querySelector('[aria-label="数据集筛选"]')
+      if (!trigger) return null
+      const value = trigger.querySelector('span')
+      const style = value ? getComputedStyle(value) : null
+      return {
+        height: Math.round(trigger.getBoundingClientRect().height),
+        title: trigger.getAttribute('title'),
+        whiteSpace: style ? style.whiteSpace : null,
+        textOverflow: style ? style.textOverflow : null,
+        overflow: style ? style.overflow : null
+      }
+    })()`)
+    if (!select) throw new Error('找不到数据集筛选控件')
+    if (select.whiteSpace !== 'nowrap' || select.textOverflow !== 'ellipsis') {
+      throw new Error(
+        `没有截断样式：white-space=${select.whiteSpace} text-overflow=${select.textOverflow}`
+      )
+    }
+    if (select.height > 34) throw new Error(`筛选框被撑成两行了（${select.height}px）`)
+    if (!select.title) throw new Error('没有 title，悬停看不到全称')
+    return `${select.height}px 单行 + 省略号，悬停显示「${select.title}」`
   })
 
   await step('手动编辑：加标签并落盘', async () => {
@@ -584,29 +610,84 @@ async function main() {
 
   // ------------------------------------------------------------ 窗口行为
 
-  await step('最大化铺满 / 还原留边距', async () => {
-    const before = await evalJs(`(() => ({
-      pad: getComputedStyle(document.querySelector('#root > div')).padding,
-      radius: getComputedStyle(document.querySelector('#root > div > div')).borderTopLeftRadius
-    }))()`)
-    if (before.pad !== '16px') throw new Error(`未最大化应有 16px 留白，实际 ${before.pad}`)
-    await evalJs(`window.workspace.window.toggleMaximize()`, true)
-    await wait(1300)
-    const maximized = await evalJs(`(() => ({
-      pad: getComputedStyle(document.querySelector('#root > div')).padding,
-      radius: getComputedStyle(document.querySelector('#root > div > div')).borderTopLeftRadius,
-      w: Math.round(document.documentElement.clientWidth)
-    }))()`)
-    if (maximized.pad !== '0px' || maximized.radius !== '0px') {
-      throw new Error(`最大化后应无留白无圆角，实际 pad=${maximized.pad} radius=${maximized.radius}`)
+  await step('面板始终铺满窗口（不透明窗口方案）', async () => {
+    const measure = () =>
+      evalJs(`(() => {
+        const shell = document.querySelector('#root > div')
+        const rect = shell.getBoundingClientRect()
+        const style = getComputedStyle(shell)
+        return {
+          pad: style.padding,
+          radius: style.borderTopLeftRadius,
+          w: Math.round(rect.width),
+          h: Math.round(rect.height),
+          vw: window.innerWidth,
+          vh: window.innerHeight
+        }
+      })()`)
+
+    const before = await measure()
+    if (before.pad !== '0px') throw new Error(`面板不该有留白，实际 padding=${before.pad}`)
+    if (before.radius !== '0px') throw new Error(`最外层不该有圆角，实际 ${before.radius}`)
+    if (before.w !== before.vw || before.h !== before.vh) {
+      throw new Error(`面板没铺满窗口：面板 ${before.w}×${before.h} vs 视口 ${before.vw}×${before.vh}`)
     }
+
     await evalJs(`window.workspace.window.toggleMaximize()`, true)
     await wait(1300)
-    const restored = await evalJs(
-      `getComputedStyle(document.querySelector('#root > div')).padding`
-    )
-    if (restored !== '16px') throw new Error(`还原后留白没回来：${restored}`)
-    return `未最大化 16px/24px → 最大化 0/0 → 还原 16px`
+    const maximized = await measure()
+    if (maximized.w !== maximized.vw || maximized.h !== maximized.vh) {
+      throw new Error(`最大化后没铺满：${maximized.w}×${maximized.h} vs ${maximized.vw}×${maximized.vh}`)
+    }
+
+    await evalJs(`window.workspace.window.toggleMaximize()`, true)
+    await wait(1300)
+    const restored = await measure()
+    if (restored.w !== restored.vw || restored.h !== restored.vh) {
+      throw new Error(`还原后没铺满：${restored.w}×${restored.h} vs ${restored.vw}×${restored.vh}`)
+    }
+    return `未最大化 ${before.w}×${before.h} → 最大化 ${maximized.w}×${maximized.h} → 还原 ${restored.w}×${restored.h}`
+  })
+
+  await step('滚动条走自定义圆角样式', async () => {
+    const scrollbar = await evalJs(`(() => {
+      const style = getComputedStyle(document.body)
+      return { width: style.scrollbarWidth, color: style.scrollbarColor }
+    })()`)
+    // Chromium 121 起，这两个标准属性一旦不是 auto，::-webkit-scrollbar 整套失效
+    if (scrollbar.width !== 'auto' || scrollbar.color !== 'auto') {
+      throw new Error(
+        `scrollbar-width/color 被设置了（${scrollbar.width} / ${scrollbar.color}），圆角滚动条会失效`
+      )
+    }
+    return '标准属性保持 auto，webkit 圆角样式生效'
+  })
+
+  await step('导航选中高亮是滑动块', async () => {
+    const read = () =>
+      evalJs(`(() => {
+        const rail = document.querySelector('nav[aria-label="主导航"]')
+        const block = rail.querySelector('span[aria-hidden]')
+        const style = getComputedStyle(block)
+        return {
+          transform: style.transform,
+          duration: style.transitionDuration,
+          hasBar: Boolean(block.querySelector('span')),
+          height: Math.round(block.getBoundingClientRect().height)
+        }
+      })()`)
+    await clickNav(0)
+    await wait(500)
+    const first = await read()
+    await clickNav(5)
+    await wait(700)
+    const last = await read()
+    if (!first.hasBar) throw new Error('高亮块里没有柠檬绿竖条')
+    if (first.transform === last.transform) {
+      throw new Error(`切换视图后高亮块没移动：${first.transform}`)
+    }
+    if (parseFloat(last.duration) <= 0) throw new Error('高亮块没有过渡时长')
+    return `${first.transform} → ${last.transform}，过渡 ${last.duration}`
   })
 
   await step('全局快捷键 Ctrl+B 开合检视面板', async () => {
