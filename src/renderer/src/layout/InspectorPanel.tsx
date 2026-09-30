@@ -69,7 +69,7 @@ export function InspectorPanel({
   if (narrow) {
     if (!open) {
       return (
-        <div className="flex w-10 shrink-0 flex-col items-center gap-2 border-l border-line bg-surface py-2">
+        <div className="glass-chrome flex w-10 shrink-0 flex-col items-center gap-2 border-l border-line-soft bg-surface py-2">
           <Tooltip side="left" label="显示检视面板">
             <IconButton size="sm" aria-label="显示检视面板" onClick={toggle}>
               <PanelRightOpen size={15} />
@@ -88,7 +88,7 @@ export function InspectorPanel({
         <aside
           aria-label="检视面板"
           style={{ width: Math.min(width, 380) }}
-          className="absolute right-0 top-0 z-40 flex h-full shrink-0 flex-col border-l border-line-strong bg-surface shadow-[var(--shadow-pop)]"
+          className="glass-strong absolute right-0 top-0 z-40 flex h-full shrink-0 flex-col border-l border-line-soft bg-surface"
         >
           {header}
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
@@ -99,7 +99,7 @@ export function InspectorPanel({
 
   if (!open) {
     return (
-      <div className="flex w-10 shrink-0 flex-col items-center gap-2 border-l border-line bg-surface py-2">
+      <div className="glass-chrome flex w-10 shrink-0 flex-col items-center gap-2 border-l border-line-soft bg-surface py-2">
         <Tooltip side="left" label="显示检视面板">
           <IconButton size="sm" aria-label="显示检视面板" onClick={toggle}>
             <PanelRightOpen size={15} />
@@ -114,7 +114,7 @@ export function InspectorPanel({
     <aside
       aria-label="检视面板"
       style={{ width }}
-      className={cn('relative flex shrink-0 flex-col border-l border-line bg-surface')}
+      className={cn('glass-chrome relative flex shrink-0 flex-col border-l border-line-soft bg-surface')}
     >
       <div
         role="separator"

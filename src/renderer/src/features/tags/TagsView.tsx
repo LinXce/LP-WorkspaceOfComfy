@@ -1,24 +1,18 @@
 import { useMemo, useState } from 'react'
-import { Combine, PencilLine, Trash2 } from 'lucide-react'
+import { FolderPlus } from 'lucide-react'
 import type { TagCategory } from '@shared/types'
-import { ALL_TAG_CATEGORIES, MOCK_TAGS, TAG_CATEGORY_LABEL } from '@renderer/lib/mock'
 import { useWorkspace } from '@renderer/lib/store'
-import { cn } from '@renderer/lib/utils'
+import { CATEGORY_OPTIONS, TAG_CATEGORY_LABEL } from '@renderer/lib/catalog'
+import { cn, formatCount } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/Button'
 import { Badge, Dot, ProgressBar } from '@renderer/components/primitives'
 import { Checkbox, SearchInput, Select } from '@renderer/components/fields'
 import {
-  StatePreviewSwitch,
   ToolbarCount,
   ToolbarSeparator,
   ViewToolbar
 } from '@renderer/components/ViewToolbar'
-import { EmptyState, ErrorState, LoadingState } from '@renderer/components/states'
-
-const CATEGORY_OPTIONS = [
-  { value: 'all', label: '全部类别' },
-  ...ALL_TAG_CATEGORIES.map((value) => ({ value, label: TAG_CATEGORY_LABEL[value] }))
-]
+import { EmptyState, ErrorState } from '@renderer/components/states'
 
 const SORT_OPTIONS = [
   { value: 'count-desc', label: '使用最多' },
@@ -26,7 +20,7 @@ const SORT_OPTIONS = [
   { value: 'name-asc', label: '标签 A→Z' }
 ]
 
-const GRID = 'grid-cols-[30px_minmax(0,1fr)_76px_132px_84px_76px]'
+const GRID = 'grid-cols-[30px_minmax(0,1fr)_76px_132px_84px]'
 
 const CATEGORY_DOT: Record<TagCategory, 'accent' | 'signal' | 'warning' | 'danger' | 'brand' | 'neutral'> = {
   person: 'accent',
@@ -38,43 +32,68 @@ const CATEGORY_DOT: Record<TagCategory, 'accent' | 'signal' | 'warning' | 'dange
 }
 
 export function TagsView(): React.JSX.Element {
-  const previewState = useWorkspace((s) => s.previewState)
+  const status = useWorkspace((s) => s.status)
+  const error = useWorkspace((s) => s.error)
+  const tags = useWorkspace((s) => s.tags)
+  const images = useWorkspace((s) => s.images)
+  const refresh = useWorkspace((s) => s.refresh)
+  const setView = useWorkspace((s) => s.setView)
   const tagQuery = useWorkspace((s) => s.tagQuery)
   const setTagQuery = useWorkspace((s) => s.setTagQuery)
   const categoryFilter = useWorkspace((s) => s.tagCategoryFilter)
   const setCategoryFilter = useWorkspace((s) => s.setTagCategoryFilter)
-  const setSelectedTagId = useWorkspace((s) => s.setSelectedTagId)
-  const selectedTagId = useWorkspace((s) => s.selectedTagId)
-  const pushToast = useWorkspace((s) => s.pushToast)
+  const selectedTagName = useWorkspace((s) => s.selectedTagName)
+  const setSelectedTagName = useWorkspace((s) => s.setSelectedTagName)
 
-  const [picked, setPicked] = useState<string[]>([])
   const [sort, setSort] = useState('count-desc')
 
-  const tags = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = tagQuery.trim().toLowerCase()
-    const list = MOCK_TAGS.filter((tag) => {
+    const list = tags.filter((tag) => {
       if (categoryFilter !== 'all' && tag.category !== categoryFilter) return false
       if (!q) return true
-      return (
-        tag.name.toLowerCase().includes(q) || tag.aliases.some((a) => a.toLowerCase().includes(q))
-      )
+      return tag.name.includes(q) || tag.aliases.some((alias) => alias.includes(q))
     })
     const sorted = [...list]
     if (sort === 'name-asc') sorted.sort((a, b) => a.name.localeCompare(b.name))
     else if (sort === 'count-asc') sorted.sort((a, b) => a.count - b.count)
     else sorted.sort((a, b) => b.count - a.count)
     return sorted
-  }, [tagQuery, categoryFilter, sort])
+  }, [tags, tagQuery, categoryFilter, sort])
 
-  const maxCount = useMemo(() => Math.max(1, ...MOCK_TAGS.map((tag) => tag.count)), [])
-  const allPicked = tags.length > 0 && picked.length === tags.length
+  const maxCount = useMemo(() => Math.max(1, ...tags.map((tag) => tag.count)), [tags])
 
-  const toggleAll = (): void => {
-    setPicked(allPicked ? [] : tags.map((tag) => tag.id))
+  if (status === 'loading') {
+    return (
+      <div className="flex h-full items-center justify-center text-2xs text-ink-muted">
+        正在读取标签…
+      </div>
+    )
   }
 
-  const toggleOne = (id: string): void => {
-    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  if (status === 'error') {
+    return (
+      <ErrorState
+        title="读取本地数据失败"
+        description={error ?? '无法读取工作台数据。'}
+        onRetry={() => void refresh()}
+      />
+    )
+  }
+
+  if (images.length === 0) {
+    return (
+      <EmptyState
+        title="还没有标签可统计"
+        description="标签来自每张图旁边的同名 .txt 文件（kohya / A1111 的常见格式）。先添加一个图片文件夹，工作台会把标签读进来。"
+        action={
+          <Button variant="primary" onClick={() => setView('datasets')}>
+            <FolderPlus size={14} />
+            去添加数据集
+          </Button>
+        }
+      />
+    )
   }
 
   return (
@@ -82,50 +101,11 @@ export function TagsView(): React.JSX.Element {
       <ViewToolbar
         actions={
           <>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={picked.length < 2}
-              onClick={() =>
-                pushToast({
-                  tone: 'info',
-                  title: `合并 ${picked.length} 个标签`,
-                  description: '选择要保留的目标标签，其余标签的出现记录会一起迁移过去。'
-                })
-              }
-            >
-              <Combine size={13} />
-              合并
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={picked.length !== 1}
-              onClick={() => pushToast({ tone: 'info', title: '重命名标签' })}
-            >
-              <PencilLine size={13} />
-              重命名
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={picked.length === 0}
-              onClick={() => {
-                pushToast({
-                  tone: 'warning',
-                  title: `已删除 ${picked.length} 个标签`,
-                  description: '标签从图片上移除，图片本身不受影响。'
-                })
-                setPicked([])
-              }}
-            >
-              <Trash2 size={13} />
-              删除
-            </Button>
+            <ToolbarCount>{filtered.length} 个标签</ToolbarCount>
             <ToolbarSeparator />
-            <ToolbarCount>{tags.length} 个标签</ToolbarCount>
-            <ToolbarSeparator />
-            <StatePreviewSwitch />
+            <Button size="sm" variant="secondary" onClick={() => void refresh()}>
+              重新统计
+            </Button>
           </>
         }
       >
@@ -139,7 +119,7 @@ export function TagsView(): React.JSX.Element {
           ariaLabel="类别筛选"
           value={categoryFilter}
           onChange={setCategoryFilter}
-          options={CATEGORY_OPTIONS}
+          options={[{ value: 'all', label: '全部类别' }, ...CATEGORY_OPTIONS]}
           className="w-[118px]"
         />
         <Select
@@ -151,67 +131,52 @@ export function TagsView(): React.JSX.Element {
         />
       </ViewToolbar>
 
-      {previewState === 'loading' ? (
-        <LoadingState title="正在统计标签…" description="重建标签索引与共现关系。" />
-      ) : previewState === 'error' ? (
-        <ErrorState
-          title="标签索引损坏"
-          description="上一次写入被中断，索引与图片记录的计数对不上。可以重建索引，图片上的标签不会丢失。"
-          onRetry={() => pushToast({ tone: 'info', title: '正在重建标签索引…' })}
-        />
-      ) : previewState === 'empty' || tags.length === 0 ? (
+      {tags.length === 0 ? (
         <EmptyState
-          title={
-            tagQuery || categoryFilter !== 'all'
-              ? '没有匹配的标签'
-              : '标签库是空的'
-          }
-          description={
-            tagQuery || categoryFilter !== 'all'
-              ? '换个关键词或类别试试。'
-              : '打标完成后标签会自动汇入这里，作为后续打标的受控词表。'
-          }
+          title="没有找到任何标签"
+          description="扫描到的图片旁边都没有同名 .txt 文件。给数据集补上标签文件后重新扫描即可。"
           action={
-            tagQuery || categoryFilter !== 'all' ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setTagQuery('')
-                  setCategoryFilter('all')
-                }}
-              >
-                清除筛选
-              </Button>
-            ) : undefined
+            <Button variant="secondary" onClick={() => setView('datasets')}>
+              去数据集重新扫描
+            </Button>
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="没有匹配的标签"
+          description="换个关键词或类别试试。"
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setTagQuery('')
+                setCategoryFilter('all')
+              }}
+            >
+              清除筛选
+            </Button>
           }
         />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={cn(
-              'sticky top-0 z-10 grid h-8 items-center gap-2 border-b border-line bg-surface px-3 text-2xs text-ink-muted',
+              'sticky top-0 z-10 grid h-8 items-center gap-2 border-b border-line-soft bg-surface px-3 text-2xs text-ink-muted',
               GRID
             )}
           >
-            <Checkbox
-              ariaLabel="全选标签"
-              checked={allPicked}
-              indeterminate={picked.length > 0 && !allPicked}
-              onChange={toggleAll}
-            />
+            <span />
             <span>标签</span>
             <span>类别</span>
             <span>使用次数</span>
-            <span>来源</span>
             <span>状态</span>
           </div>
 
           <ul>
-            {tags.map((tag) => {
-              const active = selectedTagId === tag.id
-              const checked = picked.includes(tag.id)
+            {filtered.map((tag) => {
+              const active = selectedTagName === tag.name
               return (
-                <li key={tag.id}>
+                <li key={tag.name}>
                   <div
                     style={{ height: 'var(--row-h)' }}
                     className={cn(
@@ -220,14 +185,16 @@ export function TagsView(): React.JSX.Element {
                       GRID
                     )}
                   >
-                    <Checkbox
-                      ariaLabel={`选择标签 ${tag.name}`}
-                      checked={checked}
-                      onChange={() => toggleOne(tag.id)}
-                    />
+                    <span className="flex justify-center">
+                      <Checkbox
+                        ariaLabel={`选择标签 ${tag.name}`}
+                        checked={active}
+                        onChange={() => setSelectedTagName(active ? null : tag.name)}
+                      />
+                    </span>
                     <button
                       type="button"
-                      onClick={() => setSelectedTagId(tag.id)}
+                      onClick={() => setSelectedTagName(tag.name)}
                       className="min-w-0 text-left outline-offset-2"
                     >
                       <span
@@ -252,12 +219,9 @@ export function TagsView(): React.JSX.Element {
                         label={`${tag.name} 使用次数`}
                       />
                       <span className="num w-7 shrink-0 text-right text-2xs text-ink-muted">
-                        {tag.count}
+                        {formatCount(tag.count)}
                       </span>
                     </div>
-                    <span className="text-2xs text-ink-faint">
-                      {tag.origin === 'model' ? '模型' : tag.origin === 'import' ? '导入' : '手动'}
-                    </span>
                     <span>
                       {tag.blacklisted ? (
                         <Badge tone="danger">已屏蔽</Badge>

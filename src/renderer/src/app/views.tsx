@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react'
 import type { ViewId } from '@renderer/lib/store'
+import { HomeView } from '@renderer/features/home/HomeView'
+import { HomeInspector } from '@renderer/features/home/HomeInspector'
 import { GalleryView } from '@renderer/features/gallery/GalleryView'
 import { GalleryInspector } from '@renderer/features/gallery/GalleryInspector'
 import { DatasetsView } from '@renderer/features/datasets/DatasetsView'
@@ -21,6 +23,14 @@ export interface ViewDefinition {
 }
 
 export const VIEWS: Record<ViewId, ViewDefinition> = {
+  home: {
+    id: 'home',
+    title: '主页',
+    description: '工作台概览：数据规模、打标进度与待办',
+    inspectorTitle: '状态与快捷键',
+    View: HomeView,
+    Inspector: HomeInspector
+  },
   gallery: {
     id: 'gallery',
     title: '图库',

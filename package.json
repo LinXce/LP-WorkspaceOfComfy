@@ -1,11 +1,14 @@
 {
   "name": "lp-workspace-of-comfy",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "ComfyUI 工作台 — 图库元数据、数据集打标、标签管理",
   "main": "./out/main/index.js",
   "license": "MIT",
   "author": "LP",
   "private": true,
+  "browserslist": [
+    "Chrome >= 120"
+  ],
   "scripts": {
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
@@ -13,6 +16,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "smoke": "node scripts/smoke-test.mjs",
     "dist": "npm run build && electron-builder",
     "rebuild": "electron-builder install-app-deps"
   },

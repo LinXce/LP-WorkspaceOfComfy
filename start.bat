@@ -12,6 +12,8 @@ if /i "%~1"=="--dev" goto dev
 if /i "%~1"=="--debug" goto debug
 if /i "%~1"=="--rebuild" goto rebuild
 if /i "%~1"=="--exe" goto exe
+if /i "%~1"=="--shortcut" goto shortcut
+if /i "%~1"=="--icon" goto icon
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -64,6 +66,33 @@ exit /b %errorlevel%
 echo Packaging a single-file exe...
 call npm.cmd run dist
 exit /b %errorlevel%
+
+:icon
+echo Regenerating build/icon.png and build/icon.ico...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\make-icon.ps1"
+exit /b %errorlevel%
+
+:shortcut
+set "SC_DESKTOP="
+if /i "%~2"=="desktop" set "SC_DESKTOP=-Desktop"
+if not exist "%~dp0build\icon.ico" (
+  echo [1/2] Generating app icon...
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\make-icon.ps1"
+  if errorlevel 1 (
+    echo [ERROR] icon generation failed.
+    pause
+    exit /b 1
+  )
+)
+echo [2/2] Creating shortcut with icon...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\make-shortcut.ps1" %SC_DESKTOP%
+if errorlevel 1 (
+  echo [ERROR] shortcut creation failed.
+  pause
+  exit /b 1
+)
+echo Done. Double-click the .lnk to launch with the logo icon.
+exit /b 0
 
 :help
 type "%~dp0scripts\launcher-help.txt"

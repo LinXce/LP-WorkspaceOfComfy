@@ -4,6 +4,7 @@ import {
   ArrowDown,
   CornerDownLeft,
   FolderPlus,
+  Home,
   Images,
   LayoutGrid,
   PanelRight,
@@ -45,11 +46,12 @@ export function CommandPalette(): React.JSX.Element {
     })
 
     return [
-      go('gallery', '打开 图库', <Images size={15} />, 'Ctrl+1'),
-      go('datasets', '打开 数据集', <LayoutGrid size={15} />, 'Ctrl+2'),
-      go('tagging', '打开 打标工作台', <Sparkles size={15} />, 'Ctrl+3'),
-      go('tags', '打开 标签库', <Tags size={15} />, 'Ctrl+4'),
-      go('settings', '打开 设置', <SlidersHorizontal size={15} />, 'Ctrl+5'),
+      go('home', '打开 主页', <Home size={15} />, 'Ctrl+1'),
+      go('gallery', '打开 图库', <Images size={15} />, 'Ctrl+2'),
+      go('datasets', '打开 数据集', <LayoutGrid size={15} />, 'Ctrl+3'),
+      go('tagging', '打开 打标工作台', <Sparkles size={15} />, 'Ctrl+4'),
+      go('tags', '打开 标签库', <Tags size={15} />, 'Ctrl+5'),
+      go('settings', '打开 设置', <SlidersHorizontal size={15} />, 'Ctrl+6'),
       {
         id: 'select-all',
         label: '全选当前视图的项目',
@@ -168,11 +170,11 @@ export function CommandPalette(): React.JSX.Element {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-canvas/72 backdrop-blur-[2px]" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-canvas/60 backdrop-blur-[3px]" />
         <Dialog.Content
           aria-label="命令面板"
           onKeyDown={onKeyDown}
-          className="fixed left-1/2 top-[11%] z-50 flex max-h-[62vh] w-[min(640px,88vw)] -translate-x-1/2 flex-col overflow-hidden rounded-panel border border-line-strong bg-elevated shadow-[var(--shadow-pop)]"
+          className="glass-strong fixed left-1/2 top-[11%] z-50 flex max-h-[62vh] w-[min(640px,88vw)] -translate-x-1/2 flex-col overflow-hidden rounded-panel bg-elevated"
         >
           <Dialog.Title className="sr-only">命令面板</Dialog.Title>
           <Dialog.Description className="sr-only">
@@ -220,7 +222,7 @@ export function CommandPalette(): React.JSX.Element {
                           cmd.run()
                         }}
                         className={cn(
-                          't-fast flex h-8 w-full items-center gap-2.5 rounded-control px-2 text-left text-[13px]',
+                          't-fast flex h-8 w-full items-center gap-2.5 rounded-pill px-3 text-left text-[13px]',
                           index === active
                             ? 'bg-accent-soft text-ink'
                             : 'text-ink-soft hover:bg-hover'

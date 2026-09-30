@@ -1,8 +1,17 @@
-import { CircleHelp, Images, LayoutGrid, SlidersHorizontal, Sparkles, Tags } from 'lucide-react'
+import {
+  CircleHelp,
+  Home,
+  Images,
+  LayoutGrid,
+  SlidersHorizontal,
+  Sparkles,
+  Tags
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useWorkspace, type ViewId } from '@renderer/lib/store'
 import { cn } from '@renderer/lib/utils'
 import { Tooltip } from '@renderer/components/Tooltip'
+import { BrandMark } from '@renderer/components/BrandMark'
 import { Kbd } from '@renderer/components/primitives'
 
 export interface RailItem {
@@ -13,24 +22,34 @@ export interface RailItem {
 }
 
 export const RAIL_ITEMS: RailItem[] = [
-  { id: 'gallery', label: '图库', icon: Images, hint: 'Ctrl+1' },
-  { id: 'datasets', label: '数据集', icon: LayoutGrid, hint: 'Ctrl+2' },
-  { id: 'tagging', label: '打标', icon: Sparkles, hint: 'Ctrl+3' },
-  { id: 'tags', label: '标签库', icon: Tags, hint: 'Ctrl+4' },
-  { id: 'settings', label: '设置', icon: SlidersHorizontal, hint: 'Ctrl+5' }
+  { id: 'home', label: '主页', icon: Home, hint: 'Ctrl+1' },
+  { id: 'gallery', label: '图库', icon: Images, hint: 'Ctrl+2' },
+  { id: 'datasets', label: '数据集', icon: LayoutGrid, hint: 'Ctrl+3' },
+  { id: 'tagging', label: '打标', icon: Sparkles, hint: 'Ctrl+4' },
+  { id: 'tags', label: '标签库', icon: Tags, hint: 'Ctrl+5' },
+  { id: 'settings', label: '设置', icon: SlidersHorizontal, hint: 'Ctrl+6' }
 ]
 
 export function NavRail(): React.JSX.Element {
   const view = useWorkspace((s) => s.view)
   const setView = useWorkspace((s) => s.setView)
+  const appVersion = useWorkspace((s) => s.appVersion)
   const pushToast = useWorkspace((s) => s.pushToast)
 
   return (
     <nav
       aria-label="主导航"
-      className="flex w-[var(--rail-w)] shrink-0 flex-col items-stretch border-r border-line bg-surface py-2"
+      className="rail-glass relative flex w-[var(--rail-w)] shrink-0 flex-col items-stretch py-3"
     >
-      <div className="flex flex-col gap-0.5">
+      <div className="mb-2.5 flex justify-center">
+        <Tooltip side="right" label="ComfyUI 工作台">
+          <span className="flex size-9 items-center justify-center overflow-hidden rounded-pill shadow-[inset_0_1px_0_0_oklch(1_0_0/0.35),0_4px_12px_-4px_oklch(0_0_0/0.5)]">
+            <BrandMark size={38} />
+          </span>
+        </Tooltip>
+      </div>
+
+      <div className="flex flex-col gap-1">
         {RAIL_ITEMS.map((item) => {
           const active = view === item.id
           const Icon = item.icon
@@ -46,16 +65,16 @@ export function NavRail(): React.JSX.Element {
                 aria-current={active ? 'page' : undefined}
                 onClick={() => setView(item.id)}
                 className={cn(
-                  't-fast relative flex h-13 flex-col items-center justify-center gap-1 outline-offset-[-3px]',
+                  't-fast relative flex h-13 flex-col items-center justify-center gap-1 rounded-r-panel outline-offset-[-3px]',
                   active
-                    ? 'bg-elevated text-ink'
-                    : 'text-ink-muted hover:bg-hover hover:text-ink-soft'
+                    ? 'rail-active-glass text-ink-rail-strong'
+                    : 'text-ink-rail hover:bg-white/15 hover:text-ink-rail-strong'
                 )}
               >
                 <span
                   aria-hidden
                   className={cn(
-                    'absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-pill bg-signal t-fast',
+                    't-fast absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 bg-signal',
                     active ? 'opacity-100' : 'opacity-0'
                   )}
                 />
@@ -67,7 +86,7 @@ export function NavRail(): React.JSX.Element {
         })}
       </div>
 
-      <div className="mt-auto flex flex-col gap-0.5">
+      <div className="mt-auto flex flex-col gap-1.5">
         <Tooltip side="right" label="帮助与快捷键">
           <button
             type="button"
@@ -76,17 +95,20 @@ export function NavRail(): React.JSX.Element {
               pushToast({
                 tone: 'info',
                 title: '快捷键',
-                description: 'Ctrl+K 命令面板 · Ctrl+B 检视面板 · Ctrl+A 全选 · Esc 取消选择'
+                description:
+                  'Ctrl+K 命令面板 · Ctrl+B 检视面板 · Ctrl+A 全选 · Esc 取消选择'
               })
             }
-            className="t-fast flex h-11 items-center justify-center text-ink-muted outline-offset-[-3px] hover:bg-hover hover:text-ink-soft"
+            className="t-fast flex h-10 w-full items-center justify-center rounded-r-panel text-ink-rail outline-offset-[-3px] hover:bg-white/15 hover:text-ink-rail-strong"
           >
             <CircleHelp size={18} strokeWidth={1.8} />
           </button>
         </Tooltip>
-        <div className="px-3 pt-1">
-          <div className="rounded-control border border-line-soft bg-inset py-1.5 text-center">
-            <p className="num text-[10px] leading-none text-ink-faint">v0.1.0</p>
+        <div className="px-3">
+          <div className="rounded-pill border border-black/15 bg-black/10 py-1.5 text-center">
+            <p className="num text-[10px] leading-none text-ink-rail-faint">
+              v{appVersion || '—'}
+            </p>
           </div>
         </div>
       </div>

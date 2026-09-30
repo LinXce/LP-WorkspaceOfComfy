@@ -2,7 +2,6 @@ import { PanelRight, Search } from 'lucide-react'
 import { useWorkspace } from '@renderer/lib/store'
 import { IconButton } from '@renderer/components/IconButton'
 import { Kbd } from '@renderer/components/primitives'
-import { Segmented } from '@renderer/components/fields'
 import { Tooltip } from '@renderer/components/Tooltip'
 import { WindowControls } from './WindowControls'
 
@@ -14,13 +13,11 @@ export function TopBar({
   description: string
 }): React.JSX.Element {
   const setCommandOpen = useWorkspace((s) => s.setCommandOpen)
-  const density = useWorkspace((s) => s.density)
-  const setDensity = useWorkspace((s) => s.setDensity)
   const inspectorOpen = useWorkspace((s) => s.inspectorOpen)
   const toggleInspector = useWorkspace((s) => s.toggleInspector)
 
   return (
-    <header className="drag-region flex h-[var(--topbar-h)] shrink-0 items-center gap-4 border-b border-line bg-surface pl-4">
+    <header className="glass-chrome drag-region relative flex h-[var(--topbar-h)] shrink-0 items-center gap-4 border-b border-line-soft bg-surface pl-4">
       <div className="flex min-w-0 flex-col justify-center">
         <h1 className="truncate text-[13px] font-semibold leading-4 text-ink">{title}</h1>
         <p className="truncate text-2xs leading-[14px] text-ink-muted">{description}</p>
@@ -34,7 +31,7 @@ export function TopBar({
         >
           <Search size={14} className="shrink-0" />
           <span className="flex-1 truncate text-left text-xs">搜索图片、标签、提示词…</span>
-          <span className="flex shrink-0 items-center gap-0.5">
+          <span className="flex shrink-0 items-center gap-1.5">
             <Kbd>Ctrl</Kbd>
             <Kbd>K</Kbd>
           </span>
@@ -42,15 +39,6 @@ export function TopBar({
       </div>
 
       <div className="no-drag flex shrink-0 items-center gap-1.5">
-        <Segmented
-          ariaLabel="界面密度"
-          value={density}
-          onChange={(value) => setDensity(value as 'comfortable' | 'compact')}
-          items={[
-            { value: 'comfortable', label: '舒适' },
-            { value: 'compact', label: '紧凑' }
-          ]}
-        />
         <Tooltip label={inspectorOpen ? '隐藏检视面板' : '显示检视面板'} shortcut={<Kbd>Ctrl+B</Kbd>}>
           <IconButton
             active={inspectorOpen}

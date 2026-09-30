@@ -1,10 +1,14 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Save, ShieldCheck } from 'lucide-react'
+import { Download, Eye, EyeOff, Plus, Radio, Save, ShieldCheck, Trash2 } from 'lucide-react'
+import { TEMPLATE_BY_MODE } from '@shared/defaults'
+import type { OutputFormat } from '@shared/types'
 import { useWorkspace, type Density, type MotionLevel } from '@renderer/lib/store'
+import { OUTPUT_FORMAT_OPTIONS, modelOptionsFor } from '@renderer/lib/catalog'
 import { Button } from '@renderer/components/Button'
 import { Badge } from '@renderer/components/primitives'
 import { Panel } from '@renderer/components/Panel'
 import { IconButton } from '@renderer/components/IconButton'
+import { Pills } from '@renderer/components/Pills'
 import {
   Field,
   Segmented,
@@ -15,41 +19,46 @@ import {
   TextArea,
   TextInput
 } from '@renderer/components/fields'
-
-const MODEL_OPTIONS = [
-  { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
-  { value: 'gpt-4o', label: 'gpt-4o' },
-  { value: 'qwen-vl-max', label: 'qwen-vl-max' },
-  { value: 'glm-4v-plus', label: 'glm-4v-plus' },
-  { value: 'llava-1.6-34b', label: 'llava-1.6-34b（本地 vLLM）' }
-]
-
-const FORMAT_OPTIONS = [
-  { value: 'tags', label: '逗号标签' },
-  { value: 'caption', label: '自然语言' },
-  { value: 'json', label: '分类 JSON' }
-]
+import { EndpointDialog } from './EndpointDialog'
+import { useEndpointDraft } from './useEndpointDraft'
 
 export function SettingsView(): React.JSX.Element {
   const settings = useWorkspace((s) => s.settings)
+  const apiKey = useWorkspace((s) => s.apiKey)
+  const endpoints = useWorkspace((s) => s.endpoints)
+  const endpointsFile = useWorkspace((s) => s.endpointsFile)
+  const activateEndpoint = useWorkspace((s) => s.activateEndpoint)
+  const removeEndpoint = useWorkspace((s) => s.removeEndpoint)
+  const upsertEndpoint = useWorkspace((s) => s.upsertEndpoint)
   const updateSettings = useWorkspace((s) => s.updateSettings)
+  const saveSettings = useWorkspace((s) => s.saveSettings)
+  const fetchModels = useWorkspace((s) => s.fetchModels)
+  const fetchingModels = useWorkspace((s) => s.fetchingModels)
   const unsaved = useWorkspace((s) => s.unsavedChanges)
-  const setUnsaved = useWorkspace((s) => s.setUnsavedChanges)
-  const pushToast = useWorkspace((s) => s.pushToast)
+  const dataDir = useWorkspace((s) => s.dataDir)
   const density = useWorkspace((s) => s.density)
   const setDensity = useWorkspace((s) => s.setDensity)
   const motion = useWorkspace((s) => s.motion)
   const setMotion = useWorkspace((s) => s.setMotion)
   const inspectorWidth = useWorkspace((s) => s.inspectorWidth)
   const setInspectorWidth = useWorkspace((s) => s.setInspectorWidth)
-  const [revealed, setRevealed] = useState(false)
 
-  const save = (): void => {
-    setUnsaved(false)
-    pushToast({
-      tone: 'success',
-      title: '设置已保存',
-      description: '配置写入本地数据库，下次启动自动生效。'
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [revealed, setRevealed] = useState(false)
+  const { draft, patch } = useEndpointDraft()
+
+  const models = modelOptionsFor(draft)
+  const usingEnv = Boolean(draft?.envVar.trim())
+  const usingKey = Boolean(draft?.apiKey.trim())
+  const envLive = usingEnv && draft && apiKey.variable === draft.envVar.trim()
+
+  const changeMode = (mode: string): void => {
+    const next = mode as OutputFormat
+    const known = Object.values(TEMPLATE_BY_MODE)
+    const shouldSwap = known.includes(settings.template.trim())
+    updateSettings({
+      outputFormat: next,
+      ...(shouldSwap ? { template: TEMPLATE_BY_MODE[next] } : {})
     })
   }
 
@@ -61,69 +70,218 @@ export function SettingsView(): React.JSX.Element {
             title="API 配置"
             bodyClassName="px-4 py-1"
             actions={
-              <Badge tone={settings.apiKey ? 'signal' : 'warning'}>
-                {settings.apiKey ? '已配置' : '未配置'}
-              </Badge>
+              apiKey.ready ? (
+                <Badge tone={apiKey.source === 'env' ? 'signal' : 'accent'}>
+                  {apiKey.source === 'env' ? `环境变量 ${apiKey.variable}` : '已填密钥'}
+                </Badge>
+              ) : (
+                <Badge tone="warning">未配置</Badge>
+              )
             }
           >
-            <SettingRow
-              label="Base URL"
-              description="任意 OpenAI 兼容端点，例如 DeepSeek、通义、vLLM、Ollama。"
-              control={
-                <TextInput
-                  value={settings.baseUrl}
-                  onChange={(e) => updateSettings({ baseUrl: e.target.value })}
-                  placeholder="https://api.openai.com/v1"
-                  aria-label="Base URL"
-                />
-              }
-            />
-            <SettingRow
-              label="API Key"
-              description="只保存在本机数据库中，不会随导出或同步外发。"
-              control={
-                <div className="relative w-full">
-                  <TextInput
-                    type={revealed ? 'text' : 'password'}
-                    value={settings.apiKey}
-                    onChange={(e) => updateSettings({ apiKey: e.target.value })}
-                    placeholder="sk-..."
-                    aria-label="API Key"
-                    className="pr-9"
-                  />
-                  <span className="absolute right-1 top-1">
-                    <IconButton
-                      size="sm"
-                      aria-label={revealed ? '隐藏 API Key' : '显示 API Key'}
-                      onClick={() => setRevealed((value) => !value)}
-                    >
-                      {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
-                    </IconButton>
-                  </span>
+            <div className="border-b border-line-soft py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-ink">服务来源</p>
+                  <p className="mt-0.5 text-2xs leading-[1.7] text-ink-faint">
+                    选中的那条立刻生效，同时只有一条在工作。配置存在本地文件里，改完即时保存。
+                  </p>
                 </div>
-              }
-            />
+                <Button size="sm" variant="secondary" onClick={() => setDialogOpen(true)}>
+                  <Plus size={13} />
+                  添加配置
+                </Button>
+              </div>
+              <Pills
+                ariaLabel="服务来源"
+                className="mt-2.5"
+                value={draft?.id ?? ''}
+                onChange={(id) => void activateEndpoint(id)}
+                items={endpoints.map((item) => ({
+                  value: item.id,
+                  label: item.name || item.baseUrl || '未命名配置'
+                }))}
+              />
+            </div>
+
+            {!draft ? (
+              <div className="py-6">
+                <p className="text-center text-xs text-ink-muted">
+                  还没有任何配置，点右上角「添加配置」新建一条。
+                </p>
+              </div>
+            ) : (
+              <>
+                <SettingRow
+                  label="配置名称"
+                  description="只在上面这排胶囊里显示。"
+                  control={
+                    <TextInput
+                      value={draft.name}
+                      onChange={(e) => patch({ name: e.target.value })}
+                      placeholder="例如：Faro 中转"
+                      aria-label="配置名称"
+                    />
+                  }
+                />
+                <SettingRow
+                  label="Base URL"
+                  description="任意 OpenAI 兼容端点，需要支持图片输入。"
+                  control={
+                    <TextInput
+                      value={draft.baseUrl}
+                      onChange={(e) => patch({ baseUrl: e.target.value, availableModels: [] })}
+                      placeholder="https://faroapi.com/v1"
+                      aria-label="Base URL"
+                      className="font-mono text-[11.5px]"
+                    />
+                  }
+                />
+                <SettingRow
+                  label="环境变量名"
+                  description={
+                    envLive
+                      ? apiKey.ready
+                        ? `已读到 ${apiKey.variable} 的值（${apiKey.masked}）。`
+                        : `系统里没有 ${apiKey.variable}，或者启动后没重启过工作台。`
+                      : '填了这栏就会忽略下面的 API Key，两者只能填一个。'
+                  }
+                  control={
+                    <TextInput
+                      value={draft.envVar}
+                      onChange={(e) =>
+                        patch({ envVar: e.target.value, ...(e.target.value ? { apiKey: '' } : {}) })
+                      }
+                      placeholder="FARO_API_KEY"
+                      aria-label="环境变量名"
+                      className="font-mono text-[11.5px]"
+                      disabled={usingKey}
+                    />
+                  }
+                />
+                <SettingRow
+                  label="API Key"
+                  description={
+                    usingKey
+                      ? '直接写在配置里，明文存在本地文件中。'
+                      : '填了这栏就会清空上面的环境变量名。'
+                  }
+                  control={
+                    <div className="relative w-full">
+                      <TextInput
+                        type={revealed ? 'text' : 'password'}
+                        value={draft.apiKey}
+                        onChange={(e) =>
+                          patch({ apiKey: e.target.value, ...(e.target.value ? { envVar: '' } : {}) })
+                        }
+                        placeholder={usingEnv ? '（由环境变量提供）' : 'sk-...'}
+                        aria-label="API Key"
+                        className="pr-9 font-mono text-[11.5px]"
+                        disabled={usingEnv}
+                      />
+                      <span className="absolute right-1 top-1">
+                        <IconButton
+                          size="sm"
+                          aria-label={revealed ? '隐藏 API Key' : '显示 API Key'}
+                          onClick={() => setRevealed((value) => !value)}
+                          disabled={usingEnv}
+                        >
+                          {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </IconButton>
+                      </span>
+                    </div>
+                  }
+                />
+                <SettingRow
+                  label="视觉模型"
+                  description={
+                    draft.availableModels.length > 0
+                      ? `列表来自端点，共 ${draft.availableModels.length} 个。`
+                      : '点右边的「获取」可以从这个端点拉真实模型列表。'
+                  }
+                  control={
+                    <div className="flex w-full items-center gap-2">
+                      <Select
+                        ariaLabel="视觉模型"
+                        value={draft.model}
+                        onChange={(value) => patch({ model: value })}
+                        options={models}
+                        className="min-w-0 flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={fetchingModels}
+                        onClick={() => void fetchModels()}
+                      >
+                        <Download size={13} />
+                        {fetchingModels ? '获取中' : '获取'}
+                      </Button>
+                    </div>
+                  }
+                />
+                <div className="border-b border-line-soft py-3 last:border-b-0">
+                  <div className="flex items-start gap-2 rounded-control border border-line-soft bg-inset p-2.5">
+                    <Radio size={13} className="mt-px shrink-0 text-ink-faint" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-ink">用环境变量免填密钥</p>
+                      <p className="mt-0.5 text-2xs leading-[1.7] text-ink-faint">
+                        工作台每次启动读一次环境变量。改了变量要重启工作台才会生效。
+                      </p>
+                      <pre className="mt-1.5 overflow-x-auto rounded-xs bg-canvas px-2 py-1.5 font-mono text-[10.5px] leading-[1.7] text-ink-soft">
+                        {`# PowerShell，当前会话有效
+$env:${draft.envVar || 'FARO_API_KEY'}="你的密钥"
+
+# PowerShell，永久生效（重开终端）
+[Environment]::SetEnvironmentVariable("${draft.envVar || 'FARO_API_KEY'}","你的密钥","User")`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-ink">删除这条配置</p>
+                    <p className="mt-0.5 text-2xs leading-[1.7] text-ink-faint">
+                      {endpoints.length <= 1
+                        ? '这是最后一条，删掉之后要先新建一条才能打标。'
+                        : '只删配置，不动已经打好的标签。'}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void removeEndpoint(draft.id)}
+                  >
+                    <Trash2 size={13} />
+                    删除
+                  </Button>
+                </div>
+              </>
+            )}
+          </Panel>
+
+          <Panel title="打标默认值" bodyClassName="px-4 py-1">
             <SettingRow
-              label="视觉模型"
-              description="需要支持图片输入的多模态模型。"
+              label="默认输出格式"
+              description="「标签」输出逗号分隔的 tag；「描述」输出一句自然语言。切换会自动换上对应的预设模板。"
               control={
-                <Select
-                  ariaLabel="视觉模型"
-                  value={settings.model}
-                  onChange={(value) => updateSettings({ model: value })}
-                  options={MODEL_OPTIONS}
+                <Segmented
+                  ariaLabel="默认输出格式"
+                  value={settings.outputFormat}
+                  onChange={changeMode}
+                  items={OUTPUT_FORMAT_OPTIONS}
                 />
               }
             />
             <SettingRow
               label="请求超时"
-              description="单张图片超过这个时间就判定失败并重试。"
+              description="单张图片超过这个时间就判定失败。"
               control={
                 <div className="flex w-full items-center gap-2.5">
                   <Slider
                     ariaLabel="请求超时"
                     min={5000}
-                    max={120000}
+                    max={180000}
                     step={5000}
                     value={settings.timeoutMs}
                     onChange={(value) => updateSettings({ timeoutMs: value })}
@@ -152,25 +310,9 @@ export function SettingsView(): React.JSX.Element {
                 </div>
               }
             />
-          </Panel>
-
-          <Panel title="打标默认值" bodyClassName="px-4 py-1">
-            <SettingRow
-              label="默认输出格式"
-              control={
-                <Segmented
-                  ariaLabel="默认输出格式"
-                  value={settings.outputFormat}
-                  onChange={(value) =>
-                    updateSettings({ outputFormat: value as typeof settings.outputFormat })
-                  }
-                  items={FORMAT_OPTIONS}
-                />
-              }
-            />
             <SettingRow
               label="允许模型自造新标签"
-              description="关闭后只允许输出标签库中已有的词，词表更干净但覆盖更窄。"
+              description="关闭后只允许输出标签库里已有的词。"
               control={
                 <Switch
                   ariaLabel="允许模型自造新标签"
@@ -191,10 +333,7 @@ export function SettingsView(): React.JSX.Element {
               }
             />
             <div className="border-b border-line-soft py-3 last:border-b-0">
-              <Field
-                label="打标提示词模板"
-                hint="模板里会注入受控词表与输出格式要求。修改后只影响新的打标任务。"
-              >
+              <Field label="打标提示词模板" hint="模板里会注入受控词表与输出格式要求。">
                 <TextArea
                   rows={12}
                   value={settings.template}
@@ -206,33 +345,22 @@ export function SettingsView(): React.JSX.Element {
             </div>
           </Panel>
 
-          <Panel title="路径与缓存" bodyClassName="px-4 py-1">
+          <Panel title="存储" bodyClassName="px-4 py-1">
             <SettingRow
-              label="数据集根目录"
-              description="添加数据集时的默认起始位置。"
+              label="数据集起始目录"
+              description="「添加数据集」时文件选择器的默认位置。"
               control={
                 <TextInput
                   value={settings.datasetRoot}
                   onChange={(e) => updateSettings({ datasetRoot: e.target.value })}
-                  aria-label="数据集根目录"
+                  aria-label="数据集起始目录"
                   className="font-mono text-[11.5px]"
                 />
               }
             />
             <SettingRow
-              label="缩略图缓存目录"
-              control={
-                <TextInput
-                  value={settings.thumbnailDir}
-                  onChange={(e) => updateSettings({ thumbnailDir: e.target.value })}
-                  aria-label="缩略图缓存目录"
-                  className="font-mono text-[11.5px]"
-                />
-              }
-            />
-            <SettingRow
-              label="缓存上限"
-              description="超出后按最久未访问优先清理。"
+              label="缩略图缓存上限"
+              description="超出后按最久未访问优先清理（当前版本尚未自动清理）。"
               control={
                 <div className="flex w-full items-center gap-2.5">
                   <Slider
@@ -249,12 +377,31 @@ export function SettingsView(): React.JSX.Element {
                 </div>
               }
             />
+            <div className="border-b border-line-soft py-3 last:border-b-0">
+              <p className="text-xs font-medium text-ink-soft">索引与缩略图</p>
+              <p className="mt-0.5 break-all font-mono text-[11px] text-ink-faint">
+                {dataDir || '—'}
+              </p>
+              <p className="mt-2.5 text-xs font-medium text-ink-soft">API 配置文件</p>
+              <p className="mt-0.5 break-all font-mono text-[11px] text-ink-faint">
+                {endpointsFile || '—'}
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                disabled={!dataDir}
+                onClick={() => void window.workspace?.shell.openPath(dataDir)}
+              >
+                在文件管理器中打开
+              </Button>
+            </div>
           </Panel>
 
           <Panel title="外观" bodyClassName="px-4 py-1">
             <SettingRow
               label="界面密度"
-              description="紧凑模式会减小行高与缩略图间距，一屏容纳更多内容。"
+              description="紧凑模式会减小行高与缩略图间距。"
               control={
                 <Segmented
                   ariaLabel="界面密度"
@@ -269,7 +416,7 @@ export function SettingsView(): React.JSX.Element {
             />
             <SettingRow
               label="动效级别"
-              description="面板开合、悬停反馈的动画强度。系统开启「减少动态效果」时自动降级。"
+              description="面板开合与悬停反馈的动画强度。"
               control={
                 <Segmented
                   ariaLabel="动效级别"
@@ -305,7 +452,7 @@ export function SettingsView(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-t border-line bg-surface px-4">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-t border-line-soft bg-surface px-4">
         <div className="flex items-center gap-2 text-2xs">
           {unsaved ? (
             <>
@@ -320,15 +467,18 @@ export function SettingsView(): React.JSX.Element {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" disabled={!unsaved} onClick={() => setUnsaved(false)}>
-            放弃修改
-          </Button>
-          <Button variant="primary" size="sm" disabled={!unsaved} onClick={save}>
+          <Button variant="primary" size="sm" disabled={!unsaved} onClick={() => void saveSettings()}>
             <Save size={13} />
             保存设置
           </Button>
         </div>
       </div>
+
+      <EndpointDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSubmit={(config) => void upsertEndpoint(config)}
+      />
     </div>
   )
 }

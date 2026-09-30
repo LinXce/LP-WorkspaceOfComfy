@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Check, FileWarning, Sparkles } from 'lucide-react'
+import { Check, FileWarning, RotateCw, Tag } from 'lucide-react'
 import type { ImageMeta } from '@shared/types'
 import { useWorkspace } from '@renderer/lib/store'
 import { cn, truncateMiddle } from '@renderer/lib/utils'
-import { MockArtwork } from '@renderer/components/MockArtwork'
+import { Thumbnail } from '@renderer/components/Thumbnail'
 
 function SourceMark({ image }: { image: ImageMeta }): React.JSX.Element {
   if (image.source === 'none') {
@@ -15,16 +15,10 @@ function SourceMark({ image }: { image: ImageMeta }): React.JSX.Element {
       </span>
     )
   }
-  if (image.source === 'exif') {
-    return (
-      <span className="rounded-xs bg-elevated/90 px-1 py-px text-[9px] font-medium text-ink-muted">
-        EXIF
-      </span>
-    )
-  }
+  const label = { comfyui: 'Comfy', a1111: 'A1111', novelai: 'NAI' }[image.source]
   return (
     <span className="rounded-xs bg-accent/90 px-1 py-px text-[9px] font-semibold uppercase text-on-accent">
-      {image.source === 'comfyui' ? 'Comfy' : 'A1111'}
+      {label}
     </span>
   )
 }
@@ -52,17 +46,17 @@ function ImageTile({
       onDoubleClick={onOpen}
       title={`${image.fileName}\n${image.width} × ${image.height}`}
       className={cn(
-        't-fast group relative flex cursor-default flex-col overflow-hidden rounded-panel border p-1.5 outline-offset-1',
-        'hover:border-line-strong hover:bg-hover',
+        't-fast group glass-flat relative flex cursor-default flex-col overflow-hidden rounded-panel p-1.5 outline-offset-1',
+        'hover:bg-hover',
         selected
-          ? 'border-accent bg-accent-soft'
+          ? 'bg-accent-soft shadow-[inset_0_1px_0_0_oklch(1_0_0/0.2),inset_0_0_0_1px_oklch(0.66_0.145_250/0.75)]'
           : primary
-            ? 'border-line-strong bg-surface'
-            : 'border-line-soft bg-surface'
+            ? 'bg-card shadow-[inset_0_1px_0_0_oklch(1_0_0/0.16),inset_0_0_0_1px_oklch(0.66_0.145_250/0.5)]'
+            : 'bg-card'
       )}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-control bg-inset">
-        <MockArtwork seed={image.id} />
+        <Thumbnail imageId={image.id} alt={image.fileName} />
         {selected ? (
           <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-pill bg-accent text-on-accent">
             <Check size={11} strokeWidth={3.5} />
@@ -79,7 +73,7 @@ function ImageTile({
         </p>
         {image.tags.length > 0 ? (
           <span className="num flex shrink-0 items-center gap-0.5 text-[10px] text-ink-faint">
-            <Sparkles size={9} />
+            <Tag size={9} />
             {image.tags.length}
           </span>
         ) : null}
@@ -109,9 +103,7 @@ export function ImageGrid({
     const el = parentRef.current
     if (!el) return
     setWidth(el.clientWidth)
-    const observer = new ResizeObserver((entries) => {
-      setWidth(entries[0].contentRect.width)
-    })
+    const observer = new ResizeObserver((entries) => setWidth(entries[0].contentRect.width))
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
@@ -136,15 +128,13 @@ export function ImageGrid({
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
   const moveFocus = (delta: number): void => {
-    const currentIndex = images.findIndex((img) => img.id === primaryId)
+    const currentIndex = images.findIndex((image) => image.id === primaryId)
     const base = currentIndex === -1 ? 0 : currentIndex
     const next = Math.min(images.length - 1, Math.max(0, base + delta))
     const target = images[next]
-    if (target) {
-      select(target.id, 'replace')
-      const el = document.getElementById(`tile-${target.id}`)
-      el?.scrollIntoView({ block: 'nearest' })
-    }
+    if (!target) return
+    select(target.id, 'replace')
+    document.getElementById(`tile-${target.id}`)?.scrollIntoView({ block: 'nearest' })
   }
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
@@ -171,7 +161,7 @@ export function ImageGrid({
         break
       case 'Enter': {
         event.preventDefault()
-        const target = images.find((img) => img.id === primaryId)
+        const target = images.find((image) => image.id === primaryId)
         if (target) {
           openInspector()
           onOpen?.(target)
@@ -243,6 +233,12 @@ export function ImageGrid({
           )
         })}
       </div>
+      {images.length > 400 ? (
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-2xs text-ink-faint">
+          <RotateCw size={11} />
+          缩略图按需加载
+        </p>
+      ) : null}
     </div>
   )
 }

@@ -1,12 +1,36 @@
 ComfyUI 工作台 · 启动器
 
-  start.bat              安装依赖 / 构建 / 启动（默认）
-  start.bat --dev        开发模式，带热更新
-  start.bat --debug      前台启动并把日志打在控制台
-  start.bat --rebuild    重装依赖并重新构建
-  start.bat --exe        打包成单文件 exe，输出到 release\
+  安装
+  install.bat                  装依赖 + 校验 Electron 二进制 + 构建（推荐先跑这个）
+  install.bat --clean          删掉 node_modules，用 npm ci 重装
+  install.bat --shortcut       装完顺手生成快捷方式
+  install.bat --dist           装完顺手打包到 release\
 
-  首次运行会自动执行 npm install 与 npm run build，
-  之后就只做启动。也可以直接双击 start.bat。
+  启动
+  start.bat                    安装依赖 / 构建 / 启动（默认）
+  start.bat --dev              开发模式，带热更新
+  start.bat --debug            前台启动并把日志打在控制台
+  start.bat --rebuild          重装依赖并重新构建
+  start.bat --exe              打包成单文件 exe，输出到 release\
+  start.bat --shortcut         生成带 logo 图标的快捷方式（放在项目根目录）
+  start.bat --shortcut desktop 同时放到桌面
+  start.bat --icon             重新生成 build\icon.png 与 build\icon.ico
 
-  Linux / macOS 用同名的 ./start.sh，参数一致。
+  检测
+  npm run smoke                功能检测：起一个隔离数据目录的实例跑一遍主流程
+
+  说明
+  首次运行会自动执行 npm install 与 npm run build，之后就只做启动。
+  也可以直接双击 start.bat。
+
+  Electron 的二进制默认从 GitHub 下载，网络不通时会超时并连带整次安装回滚，
+  所以安装脚本和启动器都默认走 npmmirror 镜像。想换源就先设 ELECTRON_MIRROR。
+
+  数据都在 %APPDATA%\ComfyUI Workspace 里（workspace.json 是索引与标签，
+  endpoints.json 是 API 配置）。想换位置可以用 --user-data-dir=<目录> 启动。
+
+  Windows 的 .bat 文件本身不能带图标，所以 --shortcut 会生成一个
+  指向 start.bat 的 .lnk，图标取自 build\icon.ico。双击那个 .lnk 即可。
+
+  Linux / macOS 用同名的 ./install.sh 与 ./start.sh，参数一致；
+  ./start.sh --shortcut 在 Linux 上会生成 .desktop 启动项。

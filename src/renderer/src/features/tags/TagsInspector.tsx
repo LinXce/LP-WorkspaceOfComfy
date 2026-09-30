@@ -1,42 +1,34 @@
 import { useMemo, useState } from 'react'
 import { Ban, Hash, Plus, Tag as TagIcon } from 'lucide-react'
 import type { TagCategory } from '@shared/types'
-import {
-  ALL_TAG_CATEGORIES,
-  MOCK_IMAGES,
-  MOCK_TAGS,
-  TAG_CATEGORY_LABEL
-} from '@renderer/lib/mock'
 import { useWorkspace } from '@renderer/lib/store'
+import { CATEGORY_OPTIONS, TAG_CATEGORY_LABEL } from '@renderer/lib/catalog'
 import { formatCount } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/Button'
 import { Badge } from '@renderer/components/primitives'
 import { InspectorGroup } from '@renderer/components/Panel'
 import { Select, Switch } from '@renderer/components/fields'
-import { MockArtwork } from '@renderer/components/MockArtwork'
+import { Thumbnail } from '@renderer/components/Thumbnail'
 import { TagPill } from '@renderer/components/TagPill'
 import { EmptyState } from '@renderer/components/states'
 
-const CATEGORY_OPTIONS = ALL_TAG_CATEGORIES.map((value) => ({
-  value,
-  label: TAG_CATEGORY_LABEL[value]
-}))
-
 export function TagsInspector(): React.JSX.Element {
-  const selectedTagId = useWorkspace((s) => s.selectedTagId)
+  const tags = useWorkspace((s) => s.tags)
+  const images = useWorkspace((s) => s.images)
+  const selectedTagName = useWorkspace((s) => s.selectedTagName)
+  const setSelectedTagName = useWorkspace((s) => s.setSelectedTagName)
+  const updateTagMeta = useWorkspace((s) => s.updateTagMeta)
   const select = useWorkspace((s) => s.select)
   const setView = useWorkspace((s) => s.setView)
   const pushToast = useWorkspace((s) => s.pushToast)
-  const [category, setCategory] = useState<TagCategory | null>(null)
-  const [blacklisted, setBlacklisted] = useState<boolean | null>(null)
-  const [draft, setDraft] = useState('')
+  const [aliasDraft, setAliasDraft] = useState('')
 
-  const tag = MOCK_TAGS.find((item) => item.id === selectedTagId)
+  const tag = tags.find((item) => item.name === selectedTagName)
 
-  const related = useMemo(() => {
-    if (!tag) return []
-    return MOCK_IMAGES.filter((image) => image.tags.includes(tag.name))
-  }, [tag])
+  const related = useMemo(
+    () => (tag ? images.filter((image) => image.tags.includes(tag.name)) : []),
+    [images, tag]
+  )
 
   const cooccurring = useMemo(() => {
     if (!tag) return []
@@ -63,8 +55,9 @@ export function TagsInspector(): React.JSX.Element {
     )
   }
 
-  const effectiveCategory = category ?? tag.category
-  const effectiveBlacklisted = blacklisted ?? tag.blacklisted
+  const commitAliases = (aliases: string[]): void => {
+    void updateTagMeta({ name: tag.name, aliases })
+  }
 
   return (
     <div className="flex flex-col">
@@ -84,8 +77,10 @@ export function TagsInspector(): React.JSX.Element {
             <span className="text-2xs text-ink-faint">类别</span>
             <Select
               ariaLabel="标签类别"
-              value={effectiveCategory}
-              onChange={(value) => setCategory(value as TagCategory)}
+              value={tag.category}
+              onChange={(value) =>
+                void updateTagMeta({ name: tag.name, category: value as TagCategory })
+              }
               options={CATEGORY_OPTIONS}
             />
           </div>
@@ -96,14 +91,19 @@ export function TagsInspector(): React.JSX.Element {
                 <Ban size={12} className="text-danger" />
                 屏蔽这个标签
               </p>
-              <p className="text-2xs leading-4 text-ink-faint">打标时提示模型不要输出它</p>
+              <p className="text-2xs leading-4 text-ink-faint">
+                作为受控词表时提示模型不要输出它
+              </p>
             </div>
             <Switch
               ariaLabel="屏蔽标签"
-              checked={effectiveBlacklisted}
-              onChange={setBlacklisted}
+              checked={tag.blacklisted}
+              onChange={(checked) => void updateTagMeta({ name: tag.name, blacklisted: checked })}
             />
           </div>
+          <p className="text-[10px] leading-4 text-ink-faint">
+            类别、别名、屏蔽状态保存在工作台本地，不会改动磁盘上的标签文件。
+          </p>
         </div>
       </InspectorGroup>
 
@@ -111,22 +111,29 @@ export function TagsInspector(): React.JSX.Element {
         {tag.aliases.length > 0 ? (
           <div className="mb-2 flex flex-wrap gap-1">
             {tag.aliases.map((alias) => (
-              <TagPill key={alias} name={alias} category="other" />
+              <TagPill
+                key={alias}
+                name={alias}
+                category="other"
+                onRemove={() => commitAliases(tag.aliases.filter((item) => item !== alias))}
+              />
             ))}
           </div>
         ) : (
-          <p className="mb-2 text-2xs text-ink-faint">别名用于把模型输出的不同写法归并到同一个标签。</p>
+          <p className="mb-2 text-2xs text-ink-faint">
+            别名用于把不同写法归并到同一个标签，打标时会一起送进提示词。
+          </p>
         )}
         <div className="field flex h-7 items-center gap-1.5 px-2">
           <Plus size={12} className="shrink-0 text-ink-faint" />
           <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            value={aliasDraft}
+            onChange={(e) => setAliasDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== 'Enter') return
-              const value = draft.trim().toLowerCase()
-              if (value) pushToast({ tone: 'success', title: `已添加别名 ${value}` })
-              setDraft('')
+              const value = aliasDraft.trim().toLowerCase()
+              if (value && !tag.aliases.includes(value)) commitAliases([...tag.aliases, value])
+              setAliasDraft('')
             }}
             placeholder="添加别名后回车"
             aria-label="添加别名"
@@ -139,14 +146,14 @@ export function TagsInspector(): React.JSX.Element {
         {cooccurring.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {cooccurring.map((name) => {
-              const hit = MOCK_TAGS.find((item) => item.name === name)
+              const hit = tags.find((item) => item.name === name)
               return (
                 <TagPill
                   key={name}
                   name={name}
                   category={hit?.category ?? 'other'}
                   size="sm"
-                  onClick={() => hit && useWorkspace.getState().setSelectedTagId(hit.id)}
+                  onClick={() => hit && setSelectedTagName(hit.name)}
                 />
               )
             })}
@@ -169,9 +176,9 @@ export function TagsInspector(): React.JSX.Element {
                     select(image.id, 'replace')
                     setView('gallery')
                   }}
-                  className="t-fast aspect-square overflow-hidden rounded-control border border-line-soft hover:border-accent"
+                  className="t-fast aspect-square overflow-hidden rounded-control border border-line-soft bg-inset hover:border-accent"
                 >
-                  <MockArtwork seed={image.id} />
+                  <Thumbnail imageId={image.id} alt={image.fileName} />
                 </button>
               ))}
             </div>
@@ -192,6 +199,22 @@ export function TagsInspector(): React.JSX.Element {
         ) : (
           <p className="text-2xs text-ink-faint">还没有图片使用这个标签。</p>
         )}
+      </InspectorGroup>
+
+      <InspectorGroup title="提示">
+        <button
+          type="button"
+          onClick={() =>
+            pushToast({
+              tone: 'info',
+              title: '重命名 / 合并尚未开放',
+              description: '这两步需要回写磁盘上的标签文件，会在打标接入时一起做。'
+            })
+          }
+          className="text-left text-2xs leading-[1.6] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+        >
+          为什么不能重命名或合并标签？
+        </button>
       </InspectorGroup>
     </div>
   )

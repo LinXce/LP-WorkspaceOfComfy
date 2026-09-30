@@ -1,5 +1,4 @@
-import { Download, FolderOpen, RefreshCw, Trash2 } from 'lucide-react'
-import { MOCK_DATASETS, MOCK_IMAGES } from '@renderer/lib/mock'
+import { Download, FolderOpen, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { useWorkspace } from '@renderer/lib/store'
 import { formatRelativeTime } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/Button'
@@ -10,12 +9,17 @@ import { EmptyState } from '@renderer/components/states'
 import { ImageDetail } from '../images/ImageDetail'
 
 export function DatasetsInspector(): React.JSX.Element {
+  const datasets = useWorkspace((s) => s.datasets)
   const activeDatasetId = useWorkspace((s) => s.activeDatasetId)
+  const images = useWorkspace((s) => s.images)
   const primaryId = useWorkspace((s) => s.primaryId)
-  const pushToast = useWorkspace((s) => s.pushToast)
+  const rescanDataset = useWorkspace((s) => s.rescanDataset)
+  const removeDataset = useWorkspace((s) => s.removeDataset)
+  const exportTags = useWorkspace((s) => s.exportTags)
+  const setView = useWorkspace((s) => s.setView)
 
-  const dataset = MOCK_DATASETS.find((item) => item.id === activeDatasetId)
-  const image = MOCK_IMAGES.find((item) => item.id === primaryId)
+  const dataset = datasets.find((item) => item.id === activeDatasetId)
+  const image = images.find((item) => item.id === primaryId)
 
   if (!dataset) {
     return (
@@ -36,7 +40,7 @@ export function DatasetsInspector(): React.JSX.Element {
           <IconButton
             size="sm"
             aria-label="重新扫描数据集"
-            onClick={() => pushToast({ tone: 'info', title: '开始重新扫描', description: dataset.path })}
+            onClick={() => void rescanDataset(dataset.id)}
           >
             <RefreshCw size={13} />
           </IconButton>
@@ -46,64 +50,74 @@ export function DatasetsInspector(): React.JSX.Element {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium text-ink">{dataset.name}</p>
-              <p className="truncate font-mono text-[10px] text-ink-faint" title={dataset.path}>
-                {dataset.path}
-              </p>
+              <p className="break-all font-mono text-[10px] text-ink-faint">{dataset.path}</p>
             </div>
-            <Badge tone={complete ? 'signal' : 'accent'} className="shrink-0">
-              {complete ? '打标完成' : '打标中'}
+            <Badge tone={complete ? 'signal' : 'accent'}>
+              {complete ? '全部有标签' : `${dataset.imageCount - dataset.taggedCount} 张待打标`}
             </Badge>
           </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between text-2xs text-ink-muted">
-              <span>已打标</span>
+              <span>已有标签的图片</span>
               <span className="num">
                 {dataset.taggedCount} / {dataset.imageCount}
               </span>
             </div>
             <ProgressBar
               value={dataset.taggedCount}
-              max={dataset.imageCount}
+              max={Math.max(dataset.imageCount, 1)}
               tone={complete ? 'signal' : 'accent'}
               label="数据集打标进度"
             />
           </div>
 
-          <DefinitionRow label="更新于">{formatRelativeTime(dataset.updatedAt)}</DefinitionRow>
+          <DefinitionRow label="加入时间">{formatRelativeTime(dataset.addedAt)}</DefinitionRow>
+          <DefinitionRow label="最近扫描">{formatRelativeTime(dataset.updatedAt)}</DefinitionRow>
 
           <div className="mt-0.5 flex flex-wrap gap-1.5">
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => pushToast({ tone: 'info', title: '导出标签', description: '按 WD14 格式导出 .txt。' })}
+              disabled={dataset.taggedCount === 0}
+              onClick={() => void exportTags(dataset.id)}
             >
               <Download size={13} />
               导出标签
             </Button>
             <Button
               size="sm"
-              variant="ghost"
-              onClick={() => pushToast({ tone: 'info', title: '在文件管理器中打开' })}
+              variant="secondary"
+              onClick={() => {
+                void window.workspace?.shell.openPath(dataset.path)
+              }}
             >
               <FolderOpen size={13} />
               打开目录
             </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              onClick={() =>
-                pushToast({
-                  tone: 'warning',
-                  title: '移除数据集',
-                  description: '只从工作台移除，不会删除磁盘上的文件。'
-                })
-              }
-            >
+            <Button size="sm" variant="danger" onClick={() => void removeDataset(dataset.id)}>
               <Trash2 size={13} />
               移除
             </Button>
           </div>
+          <p className="text-[10px] leading-4 text-ink-faint">
+            导出会为每张图写出同名的 <span className="font-mono">.txt</span>（标签，逗号分隔）和{' '}
+            <span className="font-mono">.caption</span>（描述）。已有的 .txt 会被覆盖，内容 =
+            原本读到的标签 + 模型生成的标签。
+          </p>
+          <p className="text-[10px] leading-4 text-ink-faint">
+            移除只会把数据集从工作台里摘掉，不会删除磁盘上的任何文件。
+          </p>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={dataset.imageCount === dataset.taggedCount}
+            onClick={() => setView('tagging')}
+          >
+            <Sparkles size={13} />
+            {dataset.imageCount === dataset.taggedCount ? '这个数据集已全部有标签' : '去打标工作台'}
+          </Button>
         </div>
       </InspectorGroup>
 
@@ -111,8 +125,8 @@ export function DatasetsInspector(): React.JSX.Element {
         <ImageDetail image={image} />
       ) : (
         <EmptyState
-          title="选中一张图片编辑标签"
-          description="这张图的标签会写入数据集，并作为下一步打标的受控词表参考。"
+          title="选中一张图片查看元数据"
+          description="中间网格里点一张图，这里会显示它嵌入的提示词、模型、LoRA 与采样参数。"
         />
       )}
     </div>

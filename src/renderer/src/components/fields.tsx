@@ -161,14 +161,14 @@ export function Select({
         <RSelect.Content
           position="popper"
           sideOffset={4}
-          className="z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-panel border border-line bg-elevated shadow-[var(--shadow-pop)]"
+          className="glass-strong z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-panel bg-elevated"
         >
           <RSelect.Viewport className="p-1">
             {options.map((option) => (
               <RSelect.Item
                 key={option.value}
                 value={option.value}
-                className="t-fast flex h-7 cursor-default select-none items-center justify-between gap-3 rounded-xs px-2 text-[13px] text-ink-soft outline-none data-[highlighted]:bg-hover data-[highlighted]:text-ink"
+                className="t-fast flex h-7 cursor-default select-none items-center justify-between gap-3 rounded-pill px-3 text-[13px] text-ink-soft outline-none data-[highlighted]:bg-hover data-[highlighted]:text-ink"
               >
                 <RSelect.ItemText>{option.label}</RSelect.ItemText>
                 <RSelect.ItemIndicator>
@@ -234,10 +234,10 @@ export function Checkbox({
       onCheckedChange={(value) => onChange(value === true)}
       aria-label={ariaLabel}
       className={cn(
-        't-fast flex size-4 shrink-0 items-center justify-center rounded-xs border',
+        't-fast flex size-4 shrink-0 items-center justify-center rounded-xs',
         checked || indeterminate
-          ? 'border-accent bg-accent text-on-accent'
-          : 'border-line-strong bg-inset hover:border-accent'
+          ? 'bg-accent text-on-accent shadow-[inset_0_1px_0_0_oklch(1_0_0/0.3),inset_0_0_0_1px_oklch(0.8_0.12_250/0.5)]'
+          : 'glass-well bg-inset text-ink-faint hover:text-ink'
       )}
     >
       <RCheckbox.Indicator>
@@ -310,7 +310,7 @@ export function Segmented({
       onValueChange={(next) => next && onChange(next)}
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex shrink-0 items-center gap-0.5 rounded-control border border-line bg-inset p-0.5',
+        'glass-well inline-flex shrink-0 items-center gap-0.5 rounded-pill bg-inset p-0.5',
         className
       )}
     >
@@ -320,8 +320,9 @@ export function Segmented({
           value={item.value}
           title={item.title}
           className={cn(
-            't-fast inline-flex h-6 min-w-6 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xs px-1.5 text-xs text-ink-muted hover:text-ink',
-            'data-[state=on]:bg-elevated data-[state=on]:shadow-[0_1px_0_0_oklch(1_0_0/0.05)_inset]',
+            't-fast inline-flex h-6 min-w-6 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-pill px-2.5 text-xs text-ink-muted hover:text-ink',
+            'data-[state=on]:bg-elevated',
+            'data-[state=on]:shadow-[inset_0_1px_0_0_oklch(1_0_0/0.16),inset_0_0_0_1px_oklch(0.66_0.145_250/0.45)]',
             activeTone === 'accent' ? 'data-[state=on]:text-accent' : 'data-[state=on]:text-ink'
           )}
         >

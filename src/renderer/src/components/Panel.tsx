@@ -16,7 +16,7 @@ export function Panel({
 }): React.JSX.Element {
   return (
     <section
-      className={cn('flex min-w-0 flex-col rounded-panel border border-line bg-surface', className)}
+      className={cn('glass flex min-w-0 flex-col rounded-panel bg-card', className)}
     >
       {title || actions ? (
         <header className="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-line-soft px-3">

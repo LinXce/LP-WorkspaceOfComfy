@@ -1,13 +1,27 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { MOCK_PROMPT_TEMPLATE } from './mock'
-import type { AppSettings } from '@shared/types'
+import { API_KEY_ENV_CANDIDATES, DEFAULT_SETTINGS } from '@shared/defaults'
+import type {
+  ApiKeyState,
+  AppSettings,
+  ConnectionTestResult,
+  Dataset,
+  EndpointConfig,
+  ImageMeta,
+  ImageTagPatch,
+  RawMetadata,
+  ScanProgress,
+  Tag,
+  TagCategory,
+  TaggingJob
+} from '@shared/types'
 
-export type ViewId = 'gallery' | 'datasets' | 'tagging' | 'tags' | 'settings'
-export type PreviewState = 'ready' | 'loading' | 'empty' | 'error'
+export type ViewId = 'home' | 'gallery' | 'datasets' | 'tagging' | 'tags' | 'settings'
 export type Density = 'comfortable' | 'compact'
+export type TaggingTab = 'pending' | 'finished' | 'manual'
 export type MotionLevel = 'full' | 'reduced' | 'none'
 export type ToastTone = 'info' | 'success' | 'warning' | 'danger'
+export type DataStatus = 'loading' | 'ready' | 'error'
 
 export interface ToastItem {
   id: string
@@ -37,9 +51,6 @@ interface WorkspaceState {
   tileSize: number
   setTileSize: (size: number) => void
 
-  previewState: PreviewState
-  setPreviewState: (state: PreviewState) => void
-
   visibleIds: string[]
   setVisibleIds: (ids: string[]) => void
   selectedIds: string[]
@@ -48,11 +59,8 @@ interface WorkspaceState {
   selectAll: () => void
   clearSelection: () => void
 
-  selectedTagId: string | null
-  setSelectedTagId: (id: string | null) => void
-
-  tagOverrides: Record<string, string[]>
-  setImageTags: (imageId: string, tags: string[]) => void
+  selectedTagName: string | null
+  setSelectedTagName: (name: string | null) => void
 
   activeDatasetId: string
   setActiveDatasetId: (id: string) => void
@@ -66,33 +74,63 @@ interface WorkspaceState {
   pushToast: (toast: Omit<ToastItem, 'id'>) => void
   dismissToast: (id: string) => void
 
+  status: DataStatus
+  error: string | null
+  datasets: Dataset[]
+  images: ImageMeta[]
+  tags: Tag[]
   settings: AppSettings
-  updateSettings: (patch: Partial<AppSettings>) => void
-
+  apiKey: ApiKeyState
+  envCandidates: string[]
+  endpoints: EndpointConfig[]
+  activeEndpoint: EndpointConfig | null
+  endpointsFile: string
+  dataDir: string
+  appVersion: string
+  scan: ScanProgress | null
   unsavedChanges: boolean
-  setUnsavedChanges: (value: boolean) => void
-}
+  fetchingModels: boolean
 
-const initialSettings: AppSettings = {
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: '',
-  model: 'gpt-4o-mini',
-  outputFormat: 'json',
-  template: MOCK_PROMPT_TEMPLATE,
-  concurrency: 3,
-  timeoutMs: 30000,
-  allowNewTags: true,
-  overwrite: false,
-  datasetRoot: 'D:\\ComfyUI\\datasets',
-  thumbnailDir: 'C:\\Users\\Administrator\\AppData\\Roaming\\ComfyUI Workspace\\thumbnails',
-  thumbnailLimitMb: 2048
+  refresh: () => Promise<void>
+  addDataset: (path?: string) => Promise<void>
+  rescanDataset: (id: string) => Promise<void>
+  removeDataset: (id: string) => Promise<void>
+  setScan: (progress: ScanProgress | null) => void
+  tagging: TaggingJob
+  taggingTab: TaggingTab
+  taggingDatasetFilter: string
+  setTaggingDatasetFilter: (id: string) => void
+  setTaggingTab: (tab: TaggingTab) => void
+  setTagging: (job: TaggingJob) => void
+  startTagging: (imageIds: string[]) => Promise<void>
+  pauseTagging: () => Promise<void>
+  resumeTagging: () => Promise<void>
+  cancelTagging: () => Promise<void>
+  requeueImages: (imageIds: string[], requeued: boolean) => Promise<void>
+  setImageTags: (patch: ImageTagPatch) => Promise<void>
+  exportTags: (scope: string) => Promise<void>
+  updateTagMeta: (payload: {
+    name: string
+    category?: TagCategory
+    aliases?: string[]
+    blacklisted?: boolean
+  }) => Promise<void>
+  loadRawMetadata: (imageId: string) => Promise<RawMetadata | null>
+  updateSettings: (patch: Partial<AppSettings>) => void
+  saveSettings: () => Promise<void>
+  fetchModels: () => Promise<ConnectionTestResult | null>
+  upsertEndpoint: (patch: Partial<EndpointConfig>) => Promise<void>
+  removeEndpoint: (id: string) => Promise<void>
+  activateEndpoint: (id: string) => Promise<void>
 }
 
 let toastSeq = 0
 
+const bridge = (): Window['workspace'] | undefined => window.workspace
+
 export const useWorkspace = create<WorkspaceState>()(
   immer((set, get) => ({
-    view: 'gallery',
+    view: 'home',
     setView: (view) => set((s) => void (s.view = view)),
 
     inspectorOpen: true,
@@ -112,9 +150,6 @@ export const useWorkspace = create<WorkspaceState>()(
     tileSize: 168,
     setTileSize: (size) => set((s) => void (s.tileSize = size)),
 
-    previewState: 'ready',
-    setPreviewState: (state) => set((s) => void (s.previewState = state)),
-
     visibleIds: [],
     setVisibleIds: (ids) => set((s) => void (s.visibleIds = ids)),
     selectedIds: [],
@@ -124,25 +159,25 @@ export const useWorkspace = create<WorkspaceState>()(
       if (mode === 'toggle') {
         const exists = selectedIds.includes(id)
         set((s) => {
-          s.selectedIds = exists ? s.selectedIds.filter((x) => x !== id) : [...s.selectedIds, id]
+          s.selectedIds = exists ? s.selectedIds.filter((item) => item !== id) : [...s.selectedIds, id]
           s.primaryId = exists ? (s.selectedIds.at(-1) ?? null) : id
         })
       } else if (mode === 'range' && selectedIds.length > 0) {
         const anchor = selectedIds[selectedIds.length - 1]
-        const a = visibleIds.indexOf(anchor)
-        const b = visibleIds.indexOf(id)
-        if (a === -1 || b === -1) {
+        const from = visibleIds.indexOf(anchor)
+        const to = visibleIds.indexOf(id)
+        if (from === -1 || to === -1) {
           set((s) => {
             s.selectedIds = [id]
             s.primaryId = id
           })
-          return
+        } else {
+          const [lo, hi] = from < to ? [from, to] : [to, from]
+          set((s) => {
+            s.selectedIds = visibleIds.slice(lo, hi + 1)
+            s.primaryId = id
+          })
         }
-        const [lo, hi] = a < b ? [a, b] : [b, a]
-        set((s) => {
-          s.selectedIds = visibleIds.slice(lo, hi + 1)
-          s.primaryId = id
-        })
       } else {
         set((s) => {
           s.selectedIds = [id]
@@ -158,20 +193,14 @@ export const useWorkspace = create<WorkspaceState>()(
         s.primaryId = null
       }),
 
-    selectedTagId: null,
-    setSelectedTagId: (id) =>
+    selectedTagName: null,
+    setSelectedTagName: (name) =>
       set((s) => {
-        s.selectedTagId = id
-        if (id) s.inspectorOpen = true
+        s.selectedTagName = name
+        if (name) s.inspectorOpen = true
       }),
 
-    tagOverrides: {},
-    setImageTags: (imageId, tags) =>
-      set((s) => {
-        s.tagOverrides[imageId] = tags
-      }),
-
-    activeDatasetId: 'ds-character',
+    activeDatasetId: '',
     setActiveDatasetId: (id) => set((s) => void (s.activeDatasetId = id)),
 
     tagQuery: '',
@@ -187,18 +216,386 @@ export const useWorkspace = create<WorkspaceState>()(
     },
     dismissToast: (id) => set((s) => void (s.toasts = s.toasts.filter((t) => t.id !== id))),
 
-    settings: initialSettings,
+    status: 'loading',
+    error: null,
+    datasets: [],
+    images: [],
+    tags: [],
+    settings: DEFAULT_SETTINGS,
+    apiKey: { ready: false, source: 'none' },
+    envCandidates: [...API_KEY_ENV_CANDIDATES],
+    endpoints: [],
+    activeEndpoint: null,
+    endpointsFile: '',
+    dataDir: '',
+    appVersion: '',
+    scan: null,
+    unsavedChanges: false,
+    fetchingModels: false,
+
+    refresh: async () => {
+      const api = bridge()
+      if (!api) {
+        set((s) => {
+          s.status = 'error'
+          s.error = '当前不在 Electron 环境中，无法读取本地数据。'
+        })
+        return
+      }
+      try {
+        const snapshot = await api.workspace.snapshot()
+        const { version } = await api.app.info()
+        set((s) => {
+          s.datasets = snapshot.datasets
+          s.images = snapshot.images
+          s.tags = snapshot.tags
+          s.settings = snapshot.settings
+          s.apiKey = snapshot.apiKey
+          s.envCandidates = snapshot.envCandidates
+          s.endpoints = snapshot.endpoints
+          s.activeEndpoint = snapshot.activeEndpoint
+          s.endpointsFile = snapshot.endpointsFile
+          s.dataDir = snapshot.dataDir
+          s.appVersion = version
+          s.status = 'ready'
+          s.error = null
+          if (!s.datasets.some((dataset) => dataset.id === s.activeDatasetId)) {
+            s.activeDatasetId = s.datasets[0]?.id ?? ''
+          }
+        })
+      } catch (error) {
+        set((s) => {
+          s.status = 'error'
+          s.error = error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    addDataset: async (path) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const dataset = await api.datasets.add(path)
+        if (!dataset) return
+        await get().refresh()
+        set((s) => void (s.activeDatasetId = dataset.id))
+        get().pushToast({
+          tone: 'success',
+          title: `已添加「${dataset.name}」`,
+          description: `扫描到 ${dataset.imageCount} 张图片。`
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        get().pushToast({ tone: 'danger', title: '添加数据集失败', description: message })
+      }
+    },
+
+    rescanDataset: async (id) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const dataset = await api.datasets.rescan(id)
+        await get().refresh()
+        get().pushToast({
+          tone: 'success',
+          title: '重新扫描完成',
+          description: `${dataset.name}：${dataset.imageCount} 张图片。`
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        get().pushToast({ tone: 'danger', title: '重新扫描失败', description: message })
+      }
+    },
+
+    removeDataset: async (id) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snapshot = await api.datasets.remove(id)
+        set((s) => {
+          s.datasets = snapshot.datasets
+          s.images = snapshot.images
+          s.tags = snapshot.tags
+          if (!s.datasets.some((dataset) => dataset.id === s.activeDatasetId)) {
+            s.activeDatasetId = s.datasets[0]?.id ?? ''
+          }
+          s.selectedIds = []
+          s.primaryId = null
+        })
+        get().pushToast({ tone: 'warning', title: '已移除数据集', description: '磁盘上的文件没有被删除。' })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        get().pushToast({ tone: 'danger', title: '移除失败', description: message })
+      }
+    },
+
+    setScan: (progress) => set((s) => void (s.scan = progress)),
+
+    updateTagMeta: async (payload) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snapshot = await api.tags.update(payload)
+        set((s) => {
+          s.tags = snapshot.tags
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        get().pushToast({ tone: 'danger', title: '标签更新失败', description: message })
+      }
+    },
+
+    loadRawMetadata: async (imageId) => {
+      const api = bridge()
+      if (!api) return null
+      try {
+        return await api.images.raw(imageId)
+      } catch {
+        return null
+      }
+    },
+
     updateSettings: (patch) =>
       set((s) => {
         Object.assign(s.settings, patch)
         s.unsavedChanges = true
       }),
 
-    unsavedChanges: false,
-    setUnsavedChanges: (value) => set((s) => void (s.unsavedChanges = value))
+    saveSettings: async () => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const settings = await api.settings.save(get().settings)
+        set((s) => {
+          s.settings = settings
+          s.unsavedChanges = false
+        })
+        get().pushToast({ tone: 'success', title: '设置已保存' })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        get().pushToast({ tone: 'danger', title: '保存失败', description: message })
+      }
+    },
+
+    fetchModels: async () => {
+      const api = bridge()
+      if (!api) return null
+      set((s) => void (s.fetchingModels = true))
+      try {
+        const { result, snapshot } = await api.settings.fetchModels()
+        const snap = snapshot
+        set((s) => {
+          s.settings = snap.settings
+          s.endpoints = snap.endpoints
+          s.activeEndpoint = snap.activeEndpoint
+          s.apiKey = snap.apiKey
+          s.unsavedChanges = false
+        })
+        get().pushToast(
+          result.ok
+            ? { tone: 'success', title: result.message }
+            : { tone: 'danger', title: '获取模型列表失败', description: result.message }
+        )
+        return result
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        get().pushToast({ tone: 'danger', title: '获取模型列表失败', description: message })
+        return null
+      } finally {
+        set((s) => void (s.fetchingModels = false))
+      }
+    },
+
+    upsertEndpoint: async (patch) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.endpoints.upsert(patch)
+        set((s) => {
+          s.endpoints = snap.endpoints
+          s.activeEndpoint = snap.activeEndpoint
+          s.apiKey = snap.apiKey
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '保存配置失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    removeEndpoint: async (id) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.endpoints.remove(id)
+        set((s) => {
+          s.endpoints = snap.endpoints
+          s.activeEndpoint = snap.activeEndpoint
+          s.apiKey = snap.apiKey
+        })
+        get().pushToast({ tone: 'warning', title: '配置已删除' })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '删除失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    activateEndpoint: async (id) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.endpoints.activate(id)
+        set((s) => {
+          s.endpoints = snap.endpoints
+          s.activeEndpoint = snap.activeEndpoint
+          s.apiKey = snap.apiKey
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '切换配置失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    tagging: { status: 'idle', total: 0, done: 0, failed: 0 },
+    taggingTab: 'pending',
+    setTaggingTab: (tab) => set((s) => void (s.taggingTab = tab)),
+    taggingDatasetFilter: 'all',
+    setTaggingDatasetFilter: (id) => set((s) => void (s.taggingDatasetFilter = id)),
+    setTagging: (job) => set((s) => void (s.tagging = job)),
+
+    startTagging: async (imageIds) => {
+      const api = bridge()
+      if (!api) return
+      if (get().unsavedChanges) await get().saveSettings()
+      try {
+        const result = await api.tagging.start(imageIds)
+        if (!result.started) {
+          get().pushToast({
+            tone: 'warning',
+            title: '没能开始打标',
+            description: result.message
+          })
+          return
+        }
+        get().pushToast({
+          tone: 'info',
+          title: `已开始打标 ${result.total} 张图片`,
+          description: '结果会实时写回，随时可以暂停或取消。'
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '启动打标失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    pauseTagging: async () => {
+      const api = bridge()
+      if (!api) return
+      const job = await api.tagging.pause()
+      set((s) => void (s.tagging = job))
+    },
+
+    resumeTagging: async () => {
+      const api = bridge()
+      if (!api) return
+      const job = await api.tagging.resume()
+      set((s) => void (s.tagging = job))
+    },
+
+    cancelTagging: async () => {
+      const api = bridge()
+      if (!api) return
+      const job = await api.tagging.cancel()
+      set((s) => void (s.tagging = job))
+      get().pushToast({
+        tone: 'warning',
+        title: '已请求取消',
+        description: '正在跑的那几张会先结束。'
+      })
+    },
+
+    requeueImages: async (imageIds, requeued) => {
+      const api = bridge()
+      if (!api || imageIds.length === 0) return
+      try {
+        const snap = await api.images.requeue(imageIds, requeued)
+        set((s) => {
+          s.images = snap.images
+          s.datasets = snap.datasets
+          s.tags = snap.tags
+        })
+        get().pushToast(
+          requeued
+            ? {
+                tone: 'info',
+                title: `已把 ${imageIds.length} 张图移回准备打标`,
+                description: '原有标签和描述都留着，重新打标时按覆盖处理。'
+              }
+            : {
+                tone: 'info',
+                title: `已把 ${imageIds.length} 张图移回已打标`,
+                description: '它们不会再排在准备打标队列里。'
+              }
+        )
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '移动失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    setImageTags: async (patch) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.images.setTags(patch)
+        set((s) => {
+          s.images = snap.images
+          s.datasets = snap.datasets
+          s.tags = snap.tags
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '保存标签失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    exportTags: async (scope) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const result = await api.datasets.exportTags(scope)
+        const parts = [`已写出 ${result.written} 个 .txt`]
+        if (result.captions > 0) parts.push(`${result.captions} 个 .caption`)
+        if (result.skipped > 0) parts.push(`${result.skipped} 张没有标签、已跳过`)
+        get().pushToast({
+          tone: result.written + result.captions > 0 ? 'success' : 'warning',
+          title: parts.join(' · '),
+          description: '文件写在同一目录下，覆盖同名 .txt。'
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '导出失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
   }))
 )
-
-export function useImageTags(imageId: string, fallback: string[]): string[] {
-  return useWorkspace((s) => s.tagOverrides[imageId] ?? fallback)
-}

@@ -1,151 +1,77 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FolderPlus, RefreshCw } from 'lucide-react'
-import { MOCK_DATASETS, MOCK_IMAGES } from '@renderer/lib/mock'
+import { FolderPlus, RefreshCw, Trash2 } from 'lucide-react'
 import { useWorkspace } from '@renderer/lib/store'
 import { cn, formatRelativeTime } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/Button'
 import { Badge, ProgressBar } from '@renderer/components/primitives'
 import { SearchInput, Select } from '@renderer/components/fields'
-import {
-  StatePreviewSwitch,
-  ToolbarCount,
-  ToolbarSeparator,
-  ViewToolbar
-} from '@renderer/components/ViewToolbar'
+import { ToolbarCount, ToolbarSeparator, ViewToolbar } from '@renderer/components/ViewToolbar'
 import { EmptyState, ErrorState } from '@renderer/components/states'
 import { ImageGrid } from '../images/ImageGrid'
 import { GridSkeleton, ScanStatus } from '../images/GridSkeleton'
 
 const SORT_OPTIONS = [
   { value: 'mtime-desc', label: '最近修改' },
-  { value: 'name-asc', label: '文件名 A→Z' },
-  { value: 'rating-desc', label: '评分最高' }
+  { value: 'name-asc', label: '文件名 A→Z' }
 ]
 
-function DatasetCard({
-  name,
-  path,
-  imageCount,
-  taggedCount,
-  updatedAt,
-  active,
-  onSelect
-}: {
-  name: string
-  path: string
-  imageCount: number
-  taggedCount: number
-  updatedAt: number
-  active: boolean
-  onSelect: () => void
-}): React.JSX.Element {
-  const complete = imageCount > 0 && taggedCount === imageCount
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={active}
-      className={cn(
-        't-fast flex w-[232px] shrink-0 flex-col gap-1.5 rounded-panel border p-2.5 text-left',
-        active
-          ? 'border-accent bg-accent-soft'
-          : 'border-line bg-surface hover:border-line-strong hover:bg-hover'
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-xs font-medium text-ink">{name}</span>
-        {active ? <Badge tone="accent">当前</Badge> : null}
-      </div>
-      <p className="truncate font-mono text-[10px] text-ink-faint" title={path}>
-        {path}
-      </p>
-      <div className="mt-1 flex items-center gap-2">
-        <ProgressBar
-          value={taggedCount}
-          max={imageCount}
-          tone={complete ? 'signal' : 'accent'}
-          label={`${name} 打标进度`}
-          className="min-w-0 flex-1"
-        />
-        <span className="num shrink-0 text-[10px] text-ink-muted">
-          {taggedCount}/{imageCount}
-        </span>
-      </div>
-      <p className="text-[10px] text-ink-faint">更新于 {formatRelativeTime(updatedAt)}</p>
-    </button>
-  )
-}
-
 export function DatasetsView(): React.JSX.Element {
-  const previewState = useWorkspace((s) => s.previewState)
+  const status = useWorkspace((s) => s.status)
+  const error = useWorkspace((s) => s.error)
+  const datasets = useWorkspace((s) => s.datasets)
+  const images = useWorkspace((s) => s.images)
+  const scan = useWorkspace((s) => s.scan)
+  const refresh = useWorkspace((s) => s.refresh)
+  const addDataset = useWorkspace((s) => s.addDataset)
+  const rescanDataset = useWorkspace((s) => s.rescanDataset)
+  const removeDataset = useWorkspace((s) => s.removeDataset)
   const activeDatasetId = useWorkspace((s) => s.activeDatasetId)
   const setActiveDatasetId = useWorkspace((s) => s.setActiveDatasetId)
   const tileSize = useWorkspace((s) => s.tileSize)
   const setVisibleIds = useWorkspace((s) => s.setVisibleIds)
-  const clearSelection = useWorkspace((s) => s.clearSelection)
-  const pushToast = useWorkspace((s) => s.pushToast)
-  const selectedIds = useWorkspace((s) => s.selectedIds)
 
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('mtime-desc')
-  const [scanning, setScanning] = useState(false)
 
-  const images = useMemo(() => {
+  const active = datasets.find((dataset) => dataset.id === activeDatasetId)
+
+  const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const list = MOCK_IMAGES.filter((image) => image.datasetId === activeDatasetId).filter(
-      (image) => !q || image.fileName.toLowerCase().includes(q)
-    )
+    const list = images
+      .filter((image) => image.datasetId === activeDatasetId)
+      .filter((image) => !q || image.fileName.toLowerCase().includes(q))
     const sorted = [...list]
     if (sort === 'name-asc') sorted.sort((a, b) => a.fileName.localeCompare(b.fileName))
-    else if (sort === 'rating-desc') sorted.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
     else sorted.sort((a, b) => b.mtime - a.mtime)
     return sorted
-  }, [activeDatasetId, query, sort])
+  }, [images, activeDatasetId, query, sort])
 
   useEffect(() => {
-    setVisibleIds(images.map((image) => image.id))
-  }, [images, setVisibleIds])
+    setVisibleIds(visible.map((image) => image.id))
+  }, [visible, setVisibleIds])
 
-  useEffect(() => {
-    clearSelection()
-  }, [activeDatasetId, clearSelection])
-
-  const startScan = (): void => {
-    setScanning(true)
-    pushToast({ tone: 'info', title: '开始扫描目录', description: '增量扫描，只处理新增或变更的文件。' })
-    window.setTimeout(() => setScanning(false), 2600)
-  }
-
-  const emptyDatasets = MOCK_DATASETS.length === 0
+  const scanning = scan !== null && scan.phase !== 'done'
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <ViewToolbar
         actions={
           <>
-            <Button size="sm" variant="secondary" onClick={startScan} disabled={scanning}>
-              <RefreshCw size={13} className={cn(scanning && 'animate-spin')} />
-              {scanning ? '扫描中' : '重新扫描'}
-            </Button>
             <Button
               size="sm"
-              variant="primary"
-              onClick={() =>
-                pushToast({
-                  tone: 'info',
-                  title: '添加数据集',
-                  description: '选择要纳入管理的文件夹。'
-                })
-              }
+              variant="secondary"
+              disabled={!active || scanning}
+              onClick={() => active && void rescanDataset(active.id)}
             >
+              <RefreshCw size={13} className={cn(scanning && 'animate-spin')} />
+              重新扫描
+            </Button>
+            <Button size="sm" variant="primary" disabled={scanning} onClick={() => void addDataset()}>
               <FolderPlus size={13} />
               添加数据集
             </Button>
             <ToolbarSeparator />
-            <ToolbarCount>{images.length} 张</ToolbarCount>
-            <ToolbarSeparator />
-            <StatePreviewSwitch />
+            <ToolbarCount>{visible.length} 张</ToolbarCount>
           </>
         }
       >
@@ -164,85 +90,129 @@ export function DatasetsView(): React.JSX.Element {
         />
       </ViewToolbar>
 
-      {previewState === 'ready' && !emptyDatasets ? (
-        <div className="shrink-0 border-b border-line bg-canvas px-3 py-2.5">
+      {status !== 'loading' && datasets.length > 0 ? (
+        <div className="shrink-0 border-b border-line-soft bg-canvas px-3 py-2.5">
           <div className="mb-2 flex items-center justify-between gap-3">
             <h2 className="text-2xs font-medium text-ink-muted">数据集</h2>
-            <span className="num text-2xs text-ink-faint">{MOCK_DATASETS.length} 个</span>
+            <span className="num text-2xs text-ink-faint">{datasets.length} 个</span>
           </div>
           <div className="flex gap-2.5 overflow-x-auto pb-1">
-            {MOCK_DATASETS.map((dataset) => (
-              <DatasetCard
-                key={dataset.id}
-                name={dataset.name}
-                path={dataset.path}
-                imageCount={dataset.imageCount}
-                taggedCount={dataset.taggedCount}
-                updatedAt={dataset.updatedAt}
-                active={dataset.id === activeDatasetId}
-                onSelect={() => setActiveDatasetId(dataset.id)}
-              />
-            ))}
+            {datasets.map((dataset) => {
+              const isActive = dataset.id === activeDatasetId
+              const complete = dataset.imageCount > 0 && dataset.taggedCount === dataset.imageCount
+              return (
+                <div
+                  key={dataset.id}
+                  className={cn(
+                    't-fast glass flex w-[232px] shrink-0 flex-col gap-1.5 rounded-panel p-2.5',
+                    isActive ? 'glass-accent bg-accent-soft' : 'bg-card hover:bg-hover'
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActiveDatasetId(dataset.id)}
+                    className="flex items-center justify-between gap-2 text-left"
+                  >
+                    <span className="min-w-0 truncate text-xs font-medium text-ink">
+                      {dataset.name}
+                    </span>
+                    {isActive ? <Badge tone="accent">当前</Badge> : null}
+                  </button>
+                  <p className="truncate font-mono text-[10px] text-ink-faint" title={dataset.path}>
+                    {dataset.path}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <ProgressBar
+                      value={dataset.taggedCount}
+                      max={Math.max(dataset.imageCount, 1)}
+                      tone={complete ? 'signal' : 'accent'}
+                      label={`${dataset.name} 打标进度`}
+                      className="min-w-0 flex-1"
+                    />
+                    <span className="num shrink-0 text-[10px] text-ink-muted">
+                      {dataset.taggedCount}/{dataset.imageCount}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-ink-faint">
+                      {formatRelativeTime(dataset.updatedAt)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`移除 ${dataset.name}`}
+                      onClick={() => void removeDataset(dataset.id)}
+                      className="t-fast rounded-xs p-0.5 text-ink-faint hover:bg-danger-soft hover:text-danger"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       ) : null}
 
       <div className="min-h-0 flex-1">
-        {previewState === 'loading' || scanning ? (
+        {status === 'loading' ? (
+          <div className="flex h-full flex-col">
+            <ScanStatus label="正在读取本地数据…" />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <GridSkeleton tileSize={tileSize} />
+            </div>
+          </div>
+        ) : status === 'error' ? (
+          <ErrorState
+            title="读取本地数据失败"
+            description={error ?? '无法读取工作台数据。'}
+            onRetry={() => void refresh()}
+          />
+        ) : scanning ? (
           <div className="flex h-full flex-col">
             <ScanStatus
-              label={scanning ? '正在增量扫描数据集…' : '正在载入数据集…'}
-              detail="已扫描 128 / 340 个文件"
+              label={`正在扫描「${scan.datasetName}」`}
+              detail={`已处理 ${scan.current} / ${scan.total || '…'} 个文件`}
             />
             <div className="min-h-0 flex-1 overflow-hidden">
               <GridSkeleton tileSize={tileSize} />
             </div>
           </div>
-        ) : previewState === 'error' ? (
-          <ErrorState
-            title="数据集目录不可用"
-            description="D:\ComfyUI\datasets\watercolor-test 已被移动或删除。可以重新指定路径，或把这个数据集从列表移除。"
-            onRetry={startScan}
-          />
-        ) : emptyDatasets || previewState === 'empty' ? (
+        ) : datasets.length === 0 ? (
           <EmptyState
-            title={emptyDatasets ? '还没有数据集' : '这个数据集是空的'}
-            description="数据集就是一个图片文件夹。添加后可以批量打标、按标签筛选，并导出训练用的标签文件。"
+            title="还没有数据集"
+            description="数据集就是一个装着图片的文件夹。添加后可以按文件夹浏览、解析元数据，并在接入打标后批量生成标签。"
             action={
-              <Button variant="primary" onClick={startScan}>
+              <Button variant="primary" onClick={() => void addDataset()}>
                 <FolderPlus size={14} />
-                添加数据集文件夹
+                选择文件夹
               </Button>
             }
           />
-        ) : images.length === 0 ? (
+        ) : visible.length === 0 ? (
           <EmptyState
-            title="没有匹配的图片"
-            description="当前数据集里没有文件名符合这个关键词的图片。"
+            title={query ? '没有匹配的图片' : '这个数据集里没有图片'}
+            description={
+              query
+                ? '当前数据集里没有文件名符合这个关键词的图片。'
+                : '目录里没有找到 png / jpg / webp 文件。'
+            }
             action={
-              <Button variant="secondary" onClick={() => setQuery('')}>
-                清除搜索
-              </Button>
+              query ? (
+                <Button variant="secondary" onClick={() => setQuery('')}>
+                  清除搜索
+                </Button>
+              ) : (
+                <Button variant="secondary" onClick={() => active && void rescanDataset(active.id)}>
+                  <RefreshCw size={13} />
+                  重新扫描
+                </Button>
+              )
             }
           />
         ) : (
-          <ImageGrid images={images} tileSize={tileSize} />
+          <ImageGrid images={visible} tileSize={tileSize} />
         )}
       </div>
-
-      {selectedIds.length > 0 ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-panel border border-line-strong bg-elevated px-3 py-2 text-xs shadow-[var(--shadow-pop)]">
-            <span className="num rounded-pill bg-accent-soft px-2 py-0.5 text-2xs font-semibold text-accent">
-              {selectedIds.length} 项
-            </span>
-            <span className="text-ink-muted">已选中</span>
-            <Button size="sm" variant="ghost" onClick={clearSelection}>
-              取消选择
-            </Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

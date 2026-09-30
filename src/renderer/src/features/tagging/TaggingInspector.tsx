@@ -1,181 +1,150 @@
-import { useState } from 'react'
-import { Check, Cpu, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
-import { IMAGE_BY_ID, MOCK_JOBS, MOCK_TAGS } from '@renderer/lib/mock'
-import { useImageTags, useWorkspace } from '@renderer/lib/store'
-import { cn } from '@renderer/lib/utils'
-import { Button } from '@renderer/components/Button'
+import { Cpu, RotateCcw, Sparkles, Undo2 } from 'lucide-react'
+import { useWorkspace } from '@renderer/lib/store'
+import { Thumbnail } from '@renderer/components/Thumbnail'
+import { TagPill } from '@renderer/components/TagPill'
 import { Badge } from '@renderer/components/primitives'
 import { InspectorGroup } from '@renderer/components/Panel'
 import { Switch } from '@renderer/components/fields'
-import { MockArtwork } from '@renderer/components/MockArtwork'
-import { TagPill } from '@renderer/components/TagPill'
+import { Button } from '@renderer/components/Button'
 import { EmptyState } from '@renderer/components/states'
-
-const CATEGORY_BY_NAME = new Map(MOCK_TAGS.map((tag) => [tag.name, tag.category]))
 
 export function TaggingInspector(): React.JSX.Element {
   const primaryId = useWorkspace((s) => s.primaryId)
+  const images = useWorkspace((s) => s.images)
+  const tags = useWorkspace((s) => s.tags)
+  const activeEndpoint = useWorkspace((s) => s.activeEndpoint)
   const settings = useWorkspace((s) => s.settings)
   const updateSettings = useWorkspace((s) => s.updateSettings)
-  const setImageTags = useWorkspace((s) => s.setImageTags)
-  const pushToast = useWorkspace((s) => s.pushToast)
-  const [draft, setDraft] = useState('')
+  const requeueImages = useWorkspace((s) => s.requeueImages)
+  const setTaggingTab = useWorkspace((s) => s.setTaggingTab)
+  const setView = useWorkspace((s) => s.setView)
 
-  const image = primaryId ? IMAGE_BY_ID.get(primaryId) : undefined
+  const image = images.find((item) => item.id === primaryId)
 
   if (!image) {
     return (
       <EmptyState
         icon={<Sparkles size={18} />}
-        title="选中队列中的一张图片"
-        description="这里会显示模型返回的标签、本次调用的耗时与 token 用量，可以直接改完再写入数据集。"
+        title="选中队列里的一张图片"
+        description="这里会显示它的标签、元数据，以及打标服务的调用参数。"
       />
     )
   }
 
-  const jobItem = MOCK_JOBS[0].items.find((item) => item.imageId === image.id)
-  const generated = jobItem?.tags ?? image.tags.slice(0, 5)
-  const tags = image.tags
-  const hasResult = Boolean(jobItem?.status === 'done')
-
-  const addTag = (): void => {
-    const value = draft.trim().toLowerCase()
-    if (!value || tags.includes(value)) {
-      setDraft('')
-      return
-    }
-    setImageTags(image.id, [...tags, value])
-    setDraft('')
-  }
+  const vocabulary = new Set(tags.map((tag) => tag.name))
 
   return (
     <div className="flex flex-col">
       <div className="relative h-[200px] w-full shrink-0 border-b border-line-soft bg-inset">
-        <MockArtwork seed={image.id} />
+        <Thumbnail imageId={image.id} alt={image.fileName} className="object-contain" />
         <span className="absolute bottom-2 left-2">
-          <Badge tone={hasResult ? 'signal' : 'accent'}>
-            {hasResult ? '模型已返回' : jobItem?.status === 'running' ? '正在打标' : '等待中'}
+          <Badge tone={image.requeued ? 'accent' : image.tags.length > 0 ? 'signal' : 'warning'}>
+            {image.requeued ? '已重新排队' : image.tags.length > 0 ? '已有标签' : '待打标'}
           </Badge>
         </span>
       </div>
 
-      <InspectorGroup
-        title="模型输出"
-        actions={
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => pushToast({ tone: 'info', title: '重新打标', description: image.fileName })}
-          >
-            <RefreshCw size={12} />
-            重打
-          </Button>
-        }
-      >
-        <p className="mb-2 break-all font-mono text-[11px] text-ink-soft">{image.fileName}</p>
-        {hasResult ? (
-          <div className="flex flex-wrap gap-1">
-            {generated.map((name) => (
-              <TagPill
-                key={name}
-                name={name}
-                category={CATEGORY_BY_NAME.get(name) ?? 'other'}
-                onClick={() => {
-                  if (tags.includes(name)) return
-                  setImageTags(image.id, [...tags, name])
-                  pushToast({ tone: 'success', title: `已采纳标签 ${name}` })
-                }}
-              />
-            ))}
+      <InspectorGroup title="图片">
+        <p className="mb-1.5 break-all font-mono text-[11px] text-ink-soft">{image.fileName}</p>
+        <div className="grid grid-cols-2 gap-x-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-2xs text-ink-faint">尺寸</span>
+            <span className="num text-xs text-ink">
+              {image.width} × {image.height}
+            </span>
           </div>
-        ) : (
-          <p className="rounded-control border border-dashed border-line-soft px-2 py-2 text-2xs text-ink-faint">
-            这张图还在队列里，模型返回后会显示标签。
-          </p>
-        )}
-        {hasResult ? (
-          <div className="mt-2 flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                const merged = [...new Set([...tags, ...generated])]
-                setImageTags(image.id, merged)
-                pushToast({ tone: 'success', title: `已采纳 ${generated.length} 个标签` })
-              }}
-            >
-              <Check size={12} />
-              全部采纳
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => pushToast({ tone: 'warning', title: '已丢弃本次结果' })}
-            >
-              <Trash2 size={12} />
-              丢弃
-            </Button>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-2xs text-ink-faint">模型</span>
+            <span className="truncate text-xs text-ink" title={image.checkpoint}>
+              {image.checkpoint ?? '—'}
+            </span>
           </div>
-        ) : null}
-      </InspectorGroup>
-
-      <InspectorGroup
-        title={`图片现有标签 · ${tags.length}`}
-        actions={
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setImageTags(image.id, [])}
-            disabled={tags.length === 0}
-          >
-            清空
-          </Button>
-        }
-      >
-        {tags.length > 0 ? (
-          <div className="mb-2 flex flex-wrap gap-1">
-            {tags.map((name) => (
-              <TagPill
-                key={name}
-                name={name}
-                category={CATEGORY_BY_NAME.get(name) ?? 'other'}
-                onRemove={() => setImageTags(image.id, tags.filter((t) => t !== name))}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="mb-2 text-2xs text-ink-faint">还没有标签。</p>
-        )}
-        <div className="field flex h-7 items-center gap-1.5 px-2">
-          <Plus size={12} className="shrink-0 text-ink-faint" />
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') addTag()
-            }}
-            placeholder="手动补一个标签"
-            aria-label="手动添加标签"
-            className="h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-ink-faint"
-          />
         </div>
       </InspectorGroup>
 
-      <InspectorGroup title="本次调用">
+      <InspectorGroup title={`当前标签 · ${image.tags.length}`}>
+        {image.tags.length > 0 ? (
+          <>
+            <div className="flex flex-wrap gap-1">
+              {image.tags.map((name) => (
+                <TagPill
+                  key={name}
+                  name={name}
+                  category={tags.find((tag) => tag.name === name)?.category ?? 'other'}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] leading-4 text-ink-faint">
+              来源：
+              {image.sidecarTags.length > 0 ? `旁车 .txt ${image.sidecarTags.length} 个` : '无旁车文件'}
+              {image.modelTags.length > 0 ? ` · 模型生成 ${image.modelTags.length} 个` : ''}
+              {image.manualTags.length > 0 ? ` · 手动添加 ${image.manualTags.length} 个` : ''}
+              {image.hiddenTags.length > 0 ? ` · 已隐藏 ${image.hiddenTags.length} 个` : ''}
+            </p>
+          </>
+        ) : (
+          <p className="rounded-control border border-dashed border-line-soft px-2 py-2 text-2xs leading-[1.6] text-ink-faint">
+            这张图还没有标签。点上面的「开始打标」，模型会根据画面生成；也可以切到「手动编辑」自己加。
+          </p>
+        )}
+        <div className="mt-2.5 flex items-center gap-2">
+          {image.requeued ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              onClick={() => void requeueImages([image.id], false)}
+            >
+              <Undo2 size={12} />
+              撤销排队
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              onClick={() => void requeueImages([image.id], true)}
+            >
+              <RotateCcw size={12} />
+              移到准备打标
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setTaggingTab('manual')
+              setView('tagging')
+            }}
+          >
+            手动编辑
+          </Button>
+        </div>
+      </InspectorGroup>
+
+      {image.caption ? (
+        <InspectorGroup title="图片描述">
+          <p className="rounded-control border border-line-soft bg-inset px-2.5 py-2 text-[11.5px] leading-[1.7] text-ink-soft">
+            {image.caption}
+          </p>
+        </InspectorGroup>
+      ) : null}
+
+      <InspectorGroup title="打标参数">
         <div className="flex flex-col gap-1.5 rounded-control border border-line-soft bg-inset p-2">
           <div className="flex items-center gap-1.5 text-2xs text-ink-muted">
             <Cpu size={12} />
-            <span className="truncate font-mono">{settings.model}</span>
+            <span className="truncate font-mono">{activeEndpoint?.model || '（未选模型）'}</span>
           </div>
           <div className="grid grid-cols-3 gap-2 pt-1">
             {[
-              { label: '耗时', value: jobItem?.ms ? `${(jobItem.ms / 1000).toFixed(1)}s` : '—' },
-              { label: '输入', value: hasResult ? '1.1k' : '—' },
-              { label: '输出', value: hasResult ? '86' : '—' }
+              { label: '输出', value: settings.outputFormat },
+              { label: '并发', value: settings.concurrency },
+              { label: '超时', value: `${settings.timeoutMs / 1000}s` }
             ].map((item) => (
               <div key={item.label} className="flex flex-col gap-0.5">
                 <span className="text-[10px] text-ink-faint">{item.label}</span>
-                <span className="num text-xs text-ink-soft">{item.value}</span>
+                <span className="num truncate text-xs text-ink-soft">{item.value}</span>
               </div>
             ))}
           </div>
@@ -195,7 +164,9 @@ export function TaggingInspector(): React.JSX.Element {
         <div className="mt-2.5 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-ink">允许模型自造新标签</p>
-            <p className="text-2xs leading-4 text-ink-faint">关闭后只使用标签库里的受控词表</p>
+            <p className="text-2xs leading-4 text-ink-faint">
+              关闭后只使用标签库里的 {vocabulary.size} 个受控词
+            </p>
           </div>
           <Switch
             ariaLabel="允许模型自造新标签"
@@ -203,15 +174,18 @@ export function TaggingInspector(): React.JSX.Element {
             onChange={(checked) => updateSettings({ allowNewTags: checked })}
           />
         </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="mt-2.5 w-full"
+          onClick={() => setView('settings')}
+        >
+          去设置里调整
+        </Button>
       </InspectorGroup>
 
       <InspectorGroup title="提示词模板">
-        <pre
-          className={cn(
-            'max-h-52 overflow-auto rounded-control border border-line-soft bg-inset p-2',
-            'font-mono text-[10.5px] leading-[1.6] text-ink-muted'
-          )}
-        >
+        <pre className="max-h-52 overflow-auto rounded-control border border-line-soft bg-inset p-2 font-mono text-[10.5px] leading-[1.6] text-ink-muted">
           {settings.template}
         </pre>
       </InspectorGroup>

@@ -1,54 +1,84 @@
 :root {
   color-scheme: dark;
 
-  /* ---- 表面：中性色统一偏向海军蓝色相 243°，让深灰有"作者感" ---- */
-  --bg-canvas: oklch(0.17 0.014 243);
-  --bg-inset: oklch(0.192 0.015 243);
-  --bg-surface: oklch(0.22 0.016 243);
-  --bg-elevated: oklch(0.26 0.018 243);
-  --bg-hover: oklch(0.31 0.02 243);
-  --bg-active: oklch(0.35 0.022 243);
+  /* ============================================================
+     表面：全部半透明，靠 backdrop-filter 做磨砂。
+     蓝色的"镶嵌"描边由 .glass / .glass-strong 统一加上。
+     实际观感 ≈ canvas 0.19 < inset 0.15 < surface 0.26 < card 0.29 < elevated 0.40
+     ============================================================ */
+  --bg-canvas: oklch(0.185 0.016 250);
+  --bg-inset: oklch(0.105 0.022 252 / 0.55);
+  --bg-surface: oklch(0.42 0.028 252 / 0.3);
+  --bg-card: oklch(0.48 0.03 252 / 0.34);
+  --bg-elevated: oklch(0.45 0.03 252 / 0.82);
+  --bg-hover: oklch(1 0 0 / 0.07);
 
-  /* ---- 描边 ---- */
-  --line: oklch(0.34 0.018 243);
-  --line-soft: oklch(0.28 0.016 243);
-  --line-strong: oklch(0.44 0.02 243);
+  /* ============================================================
+     左侧导轨：最亮的一块磨砂，明显比内容区浅
+     ============================================================ */
+  --bg-rail: oklch(0.38 0.03 250 / 0.62);
+  --rail-active-bg: oklch(0.14 0.03 250 / 0.55);
+  --rail-active-edge: oklch(1 0 0 / 0.1);
+
+  /* ---- 环境光：整窗铺一层柔和色晕，磨砂才有东西可以扩散 ---- */
+  --ambient-a: oklch(0.62 0.14 250 / 0.26);
+  --ambient-b: oklch(0.46 0.095 244 / 0.34);
+  --ambient-c: oklch(0.8 0.15 135 / 0.08);
+
+  /* ---- 蓝色镶嵌：玻璃片的镶边与内环光 ---- */
+  --inlay: oklch(0.66 0.145 250 / 0.22);
+  --inlay-strong: oklch(0.66 0.145 250 / 0.5);
+  --inlay-top: oklch(1 0 0 / 0.13);
+
+  --ink-rail: oklch(0.91 0.01 250);
+  --ink-rail-strong: oklch(0.99 0.004 92);
+  --ink-rail-faint: oklch(0.75 0.014 250);
+
+  /* ---- 描边：白色发丝线 ---- */
+  --line-soft: oklch(1 0 0 / 0.06);
+  --line: oklch(1 0 0 / 0.12);
+  --line-strong: oklch(0.92 0.01 250 / 0.32);
+  --scroll-thumb: oklch(1 0 0 / 0.18);
+  --scroll-thumb-hover: oklch(1 0 0 / 0.32);
 
   /* ---- 文本：正文用米白 #F1EEE9，不用纯白 ---- */
-  --ink: oklch(0.945 0.006 92);
-  --ink-soft: oklch(0.78 0.012 240);
-  --ink-muted: oklch(0.66 0.012 240);
-  --ink-faint: oklch(0.52 0.012 240);
-  --ink-on-accent: oklch(0.16 0.02 243);
+  --ink: oklch(0.96 0.004 92);
+  --ink-soft: oklch(0.83 0.011 250);
+  --ink-muted: oklch(0.72 0.012 250);
+  --ink-faint: oklch(0.64 0.012 250);
+  --ink-on-accent: oklch(0.17 0.02 248);
 
-  /* ---- 亮蓝：主交互色（焦点环 / 主操作 / 选中 / 链接） ---- */
-  --accent: oklch(0.64 0.125 240);
-  --accent-hover: oklch(0.69 0.13 240);
-  --accent-press: oklch(0.58 0.12 240);
-  --accent-soft: oklch(0.64 0.125 240 / 0.18);
-  --accent-ring: oklch(0.64 0.125 240 / 0.45);
+  /* ============================================================
+     撞色：亮蓝（交互）⟷ 柠檬绿（高信号），中间用深海军蓝压阵
+     ============================================================ */
+  --accent: oklch(0.66 0.145 250);
+  --accent-hover: oklch(0.71 0.15 250);
+  --accent-press: oklch(0.6 0.14 250);
+  --accent-soft: oklch(0.66 0.145 250 / 0.2);
+  --accent-ring: oklch(0.66 0.145 250 / 0.5);
 
-  /* ---- 深海军蓝：选中底色 / 品牌块 / 次级结构 ---- */
-  --brand: oklch(0.4 0.07 236);
-  --brand-deep: oklch(0.31 0.06 236);
-  --brand-soft: oklch(0.4 0.07 236 / 0.32);
+  --brand: oklch(0.42 0.09 246);
+  --brand-deep: oklch(0.3 0.078 248);
+  --brand-soft: oklch(0.42 0.09 246 / 0.35);
 
-  /* ---- 柠檬绿：高信号色（成功 / 就绪 / 完成），用量 < 10% ---- */
-  --signal: oklch(0.82 0.17 128);
-  --signal-press: oklch(0.75 0.16 128);
-  --signal-soft: oklch(0.82 0.17 128 / 0.16);
+  --signal: oklch(0.85 0.185 130);
+  --signal-press: oklch(0.78 0.17 130);
+  --signal-soft: oklch(0.85 0.185 130 / 0.18);
 
   /* ---- 语义状态 ---- */
-  --warning: oklch(0.78 0.14 78);
-  --warning-soft: oklch(0.78 0.14 78 / 0.16);
-  --danger: oklch(0.63 0.19 27);
-  --danger-soft: oklch(0.63 0.19 27 / 0.16);
+  --warning: oklch(0.8 0.145 76);
+  --warning-soft: oklch(0.8 0.145 76 / 0.18);
+  --danger: oklch(0.65 0.2 27);
+  --danger-soft: oklch(0.65 0.2 27 / 0.18);
 
-  /* ---- 圆角 ---- */
-  --r-xs: 4px;
-  --r-control: 6px;
-  --r-panel: 10px;
-  --r-pill: 999px;
+  /* ---- 圆角：同心层级，外层永远比内层大 ---- */
+  --r-xs: 6px; /* 勾选框、小徽章 */
+  --r-field: 4px; /* 输入框 / 文本域 —— 打字的地方，圆角要小 */
+  --r-control: 12px; /* 卡片内部的内容块 */
+  --r-tile: 14px; /* 缩略图 */
+  --r-panel: 18px; /* 卡片 / 面板 */
+  --r-frame: 24px; /* 应用外框 */
+  --r-pill: 999px; /* 按钮 / 输入框 / 图标位 —— 胶囊或正圆 */
 
   /* ---- 动效 ---- */
   --dur-fast: 120ms;
@@ -56,15 +86,16 @@
   --dur-exit: 110ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* ---- 布局尺寸 ---- */
+  /* ---- 布局尺寸（未改动） ---- */
   --rail-w: 64px;
   --topbar-h: 52px;
   --statusbar-h: 28px;
   --inspector-w: 340px;
   --row-h: 36px;
 
-  /* ---- 阴影：深度靠表面亮度分层，阴影只用于浮层 ---- */
-  --shadow-pop: 0 1px 0 0 oklch(1 0 0 / 0.04) inset, 0 8px 24px -6px oklch(0 0 0 / 0.55);
+  /* ---- 阴影 ---- */
+  --shadow-pop: 0 1px 0 0 oklch(1 0 0 / 0.05) inset, 0 10px 30px -8px oklch(0 0 0 / 0.65);
+  --shadow-rail: inset 0 1px 0 0 oklch(1 0 0 / 0.2), inset -1px 0 0 0 var(--inlay-strong);
 }
 
 [data-density='compact'] {

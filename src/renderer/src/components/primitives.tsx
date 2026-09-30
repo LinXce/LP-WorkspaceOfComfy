@@ -51,7 +51,7 @@ export function Dot({ tone = 'neutral', className }: { tone?: Tone; className?: 
 
 export function Kbd({ children }: { children: ReactNode }): React.JSX.Element {
   return (
-    <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-xs border border-line bg-elevated px-1 font-sans text-2xs text-ink-muted">
+    <kbd className="glass-flat inline-flex h-5 min-w-5 items-center justify-center rounded-xs bg-elevated px-1 font-sans text-2xs text-ink-muted">
       {children}
     </kbd>
   )

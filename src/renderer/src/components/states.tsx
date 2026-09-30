@@ -25,7 +25,7 @@ export function EmptyState({
         className
       )}
     >
-      <div className="flex size-11 items-center justify-center rounded-pill border border-line bg-surface text-ink-faint">
+      <div className="glass flex size-11 items-center justify-center rounded-pill bg-white/5 text-ink-faint">
         {icon ?? <Inbox size={18} />}
       </div>
       <div className="flex max-w-[38ch] flex-col gap-1.5">
@@ -63,7 +63,7 @@ export function ErrorState({
         className
       )}
     >
-      <div className="flex size-11 items-center justify-center rounded-pill border border-danger/35 bg-danger-soft text-danger">
+      <div className="glass flex size-11 items-center justify-center rounded-pill bg-danger-soft text-danger">
         <AlertTriangle size={18} />
       </div>
       <div className="flex max-w-[42ch] flex-col gap-1.5">

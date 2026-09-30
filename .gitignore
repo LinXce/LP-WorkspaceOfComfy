@@ -1,48 +1,70 @@
 # ---------- 依赖 ----------
 node_modules/
 .pnpm-store/
+.yarn/
+/coverage
+/.nyc_output
+*.lcov
 
 # ---------- 构建产物 ----------
 /out
 /dist
 /dist-electron
 /release
+/*-unpacked
 *.tsbuildinfo
 *.blockmap
 
-# 注意：build/ 是 electron-builder 的 buildResources 目录，图标等资源必须入库，不要忽略
+# 注意：build/ 是 electron-builder 的 buildResources 目录，
+# 里面的 icon.png / icon.ico 必须入库，不要整个忽略。
+/build/*.iconset
+/build/*.dmg
+/build/*.app
+
+# 注意：package-lock.json 必须入库，保证换机器装出来的依赖一致。
 
 # ---------- 缓存 ----------
 /.vite
 /.cache
 /.turbo
+/.parcel-cache
 /.eslintcache
 /.stylelintcache
+/node_modules/.cache
 
-# ---------- 日志 ----------
+# ---------- 日志与崩溃转储 ----------
 /logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.npm/_cacache
+*.dmp
+hs_err_pid*
+report.*.json
 
 # ---------- 环境变量 ----------
 .env
 .env.*
 !.env.example
 
-# ---------- 测试与覆盖率 ----------
-/coverage
-/.nyc_output
-*.lcov
+# ---------- 打包产物（release/ 之外的散落文件）----------
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
 
-# ---------- 编辑器 ----------
+# ---------- 编辑器与 IDE ----------
 /.vscode/*
 !/.vscode/extensions.json
 !/.vscode/settings.json
 /.idea
 /.history
+/.fleet
+*.code-workspace
 *.swp
 *.swo
 *~
@@ -56,8 +78,12 @@ pnpm-debug.log*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+desktop.ini
 $RECYCLE.BIN/
+
+# ---------- 本地启动项（路径与本机绑定，用 --shortcut 重新生成）----------
 *.lnk
+*.desktop
 
 # ---------- 本地工具状态 ----------
 .commandcode/

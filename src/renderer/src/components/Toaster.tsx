@@ -29,7 +29,7 @@ export function Toaster(): React.JSX.Element {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto flex items-start gap-2.5 rounded-panel border border-line bg-elevated p-3 shadow-[var(--shadow-pop)]"
+          className="glass-strong pointer-events-auto flex items-start gap-2.5 rounded-panel bg-elevated p-3"
         >
           <span className={cn('mt-px shrink-0', TONE_CLASS[toast.tone])}>
             {TONE_ICON[toast.tone]}

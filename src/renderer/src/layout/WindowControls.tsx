@@ -1,18 +1,13 @@
-import { useEffect, useState } from 'react'
 import { Copy, Minus, Square, X } from 'lucide-react'
 import { bridge } from '@renderer/lib/bridge'
+import { useMaximized } from '@renderer/hooks/useMaximized'
 import { cn } from '@renderer/lib/utils'
 
 const CONTROL =
   'no-drag inline-flex h-full w-11 items-center justify-center text-ink-soft t-fast outline-offset-[-3px]'
 
 export function WindowControls(): React.JSX.Element {
-  const [maximized, setMaximized] = useState(false)
-
-  useEffect(() => {
-    void bridge.isMaximized().then(setMaximized)
-    return bridge.onMaximizedChange(setMaximized)
-  }, [])
+  const maximized = useMaximized()
 
   return (
     <div className="no-drag ml-1 flex h-[var(--topbar-h)] shrink-0 items-center self-center">
@@ -27,7 +22,7 @@ export function WindowControls(): React.JSX.Element {
       <button
         type="button"
         aria-label={maximized ? '还原窗口' : '最大化窗口'}
-        onClick={() => void bridge.toggleMaximize().then(setMaximized)}
+        onClick={() => void bridge.toggleMaximize()}
         className={cn(CONTROL, 'hover:bg-hover hover:text-ink')}
       >
         {maximized ? <Copy size={12.5} /> : <Square size={12.5} />}

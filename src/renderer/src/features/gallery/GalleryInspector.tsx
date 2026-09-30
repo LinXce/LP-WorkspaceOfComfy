@@ -1,5 +1,4 @@
-import { ImageOff, MousePointerClick } from 'lucide-react'
-import { MOCK_IMAGES } from '@renderer/lib/mock'
+import { MousePointerClick } from 'lucide-react'
 import { useWorkspace } from '@renderer/lib/store'
 import { EmptyState } from '@renderer/components/states'
 import { Badge } from '@renderer/components/primitives'
@@ -8,27 +7,16 @@ import { ImageDetail } from '../images/ImageDetail'
 export function GalleryInspector(): React.JSX.Element {
   const primaryId = useWorkspace((s) => s.primaryId)
   const selectedCount = useWorkspace((s) => s.selectedIds.length)
-  const image = MOCK_IMAGES.find((item) => item.id === primaryId)
+  const images = useWorkspace((s) => s.images)
+  const image = images.find((item) => item.id === primaryId)
 
   if (!image) {
     return (
       <EmptyState
         icon={<MousePointerClick size={18} />}
         title="选中一张图片查看详情"
-        description="左侧检视面板会显示这张图的提示词、模型、LoRA 与采样参数，可直接编辑标签。"
+        description="这里会显示这张图嵌入的提示词、模型、LoRA 与采样参数，数据直接从文件头解析。"
       />
-    )
-  }
-
-  if (image.source === 'none' && image.tags.length === 0) {
-    return (
-      <>
-        <div className="flex items-center gap-2 border-b border-line-soft bg-canvas px-3 py-1.5">
-          <ImageOff size={12} className="text-warning" />
-          <span className="text-2xs text-ink-muted">这张图没有任何可解析的元数据</span>
-        </div>
-        <ImageDetail image={image} />
-      </>
     )
   }
 

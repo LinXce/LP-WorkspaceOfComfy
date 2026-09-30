@@ -28,7 +28,7 @@ export function Tooltip({
           side={side}
           sideOffset={6}
           collisionPadding={8}
-          className="z-50 flex max-w-70 items-center gap-2 rounded-control border border-line bg-elevated px-2 py-1 text-xs text-ink shadow-[var(--shadow-pop)]"
+          className="glass-strong z-50 flex max-w-70 items-center gap-2 rounded-pill bg-elevated px-2.5 py-1 text-xs text-ink"
         >
           <span>{label}</span>
           {shortcut}

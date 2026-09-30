@@ -2,11 +2,12 @@ import { useEffect } from 'react'
 import { useWorkspace, type ViewId } from '@renderer/lib/store'
 
 const VIEW_BY_DIGIT: Record<string, ViewId> = {
-  '1': 'gallery',
-  '2': 'datasets',
-  '3': 'tagging',
-  '4': 'tags',
-  '5': 'settings'
+  '1': 'home',
+  '2': 'gallery',
+  '3': 'datasets',
+  '4': 'tagging',
+  '5': 'tags',
+  '6': 'settings'
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {

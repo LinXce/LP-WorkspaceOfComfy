@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Copy, Sparkles, Tag, Trash2 } from 'lucide-react'
-import { MOCK_IMAGES } from '@renderer/lib/mock'
+import { Copy, FolderPlus } from 'lucide-react'
 import { useWorkspace } from '@renderer/lib/store'
 import { copyText } from '@renderer/lib/clipboard'
 import { Button } from '@renderer/components/Button'
 import { BatchBar } from '@renderer/components/BatchBar'
 import { SearchInput, Select, Slider } from '@renderer/components/fields'
-import {
-  StatePreviewSwitch,
-  ToolbarCount,
-  ToolbarSeparator,
-  ViewToolbar
-} from '@renderer/components/ViewToolbar'
+import { ToolbarCount, ToolbarSeparator, ViewToolbar } from '@renderer/components/ViewToolbar'
 import { EmptyState, ErrorState } from '@renderer/components/states'
 import { ImageGrid } from '../images/ImageGrid'
 import { GridSkeleton, ScanStatus } from '../images/GridSkeleton'
@@ -20,20 +14,24 @@ const SOURCE_OPTIONS = [
   { value: 'all', label: '全部来源' },
   { value: 'comfyui', label: 'ComfyUI 节点图' },
   { value: 'a1111', label: 'A1111 parameters' },
-  { value: 'with-meta', label: '有元数据' },
-  { value: 'without-meta', label: '无元数据' }
+  { value: 'without-meta', label: '无元数据' },
+  { value: 'untagged', label: '无标签' }
 ]
 
 const SORT_OPTIONS = [
   { value: 'mtime-desc', label: '最近修改' },
   { value: 'mtime-asc', label: '最早修改' },
   { value: 'name-asc', label: '文件名 A→Z' },
-  { value: 'size-desc', label: '文件最大' },
-  { value: 'rating-desc', label: '评分最高' }
+  { value: 'size-desc', label: '文件最大' }
 ]
 
 export function GalleryView(): React.JSX.Element {
-  const previewState = useWorkspace((s) => s.previewState)
+  const status = useWorkspace((s) => s.status)
+  const error = useWorkspace((s) => s.error)
+  const images = useWorkspace((s) => s.images)
+  const scan = useWorkspace((s) => s.scan)
+  const refresh = useWorkspace((s) => s.refresh)
+  const addDataset = useWorkspace((s) => s.addDataset)
   const tileSize = useWorkspace((s) => s.tileSize)
   const setTileSize = useWorkspace((s) => s.setTileSize)
   const selectedIds = useWorkspace((s) => s.selectedIds)
@@ -46,20 +44,20 @@ export function GalleryView(): React.JSX.Element {
   const [source, setSource] = useState('all')
   const [sort, setSort] = useState('mtime-desc')
 
-  const images = useMemo(() => {
+  const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const filtered = MOCK_IMAGES.filter((image) => {
+    const filtered = images.filter((image) => {
       if (source === 'comfyui' && image.source !== 'comfyui') return false
       if (source === 'a1111' && image.source !== 'a1111') return false
-      if (source === 'with-meta' && image.source === 'none') return false
       if (source === 'without-meta' && image.source !== 'none') return false
+      if (source === 'untagged' && image.tags.length > 0) return false
       if (!q) return true
       return (
         image.fileName.toLowerCase().includes(q) ||
         (image.positive?.toLowerCase().includes(q) ?? false) ||
         (image.checkpoint?.toLowerCase().includes(q) ?? false) ||
         image.loras.some((lora) => lora.name.toLowerCase().includes(q)) ||
-        image.tags.some((tag) => tag.toLowerCase().includes(q))
+        image.tags.some((tag) => tag.includes(q))
       )
     })
 
@@ -74,23 +72,22 @@ export function GalleryView(): React.JSX.Element {
       case 'size-desc':
         sorted.sort((a, b) => b.sizeBytes - a.sizeBytes)
         break
-      case 'rating-desc':
-        sorted.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-        break
       default:
         sorted.sort((a, b) => b.mtime - a.mtime)
     }
     return sorted
-  }, [query, source, sort])
+  }, [images, query, source, sort])
 
   useEffect(() => {
-    setVisibleIds(images.map((image) => image.id))
-  }, [images, setVisibleIds])
+    setVisibleIds(visible.map((image) => image.id))
+  }, [visible, setVisibleIds])
 
   const selectedImages = useMemo(
-    () => MOCK_IMAGES.filter((image) => selectedIds.includes(image.id)),
-    [selectedIds]
+    () => images.filter((image) => selectedIds.includes(image.id)),
+    [images, selectedIds]
   )
+
+  const hasFilters = Boolean(query) || source !== 'all'
 
   const copyPrompts = async (): Promise<void> => {
     const payload = selectedImages
@@ -109,18 +106,18 @@ export function GalleryView(): React.JSX.Element {
     )
   }
 
-  const hasFilters = Boolean(query) || source !== 'all'
-  const forcedEmpty = previewState === 'empty'
-  const showFilteredEmpty = hasFilters && !forcedEmpty
+  const scanning = scan !== null && scan.phase !== 'done'
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <ViewToolbar
         actions={
           <>
-            <ToolbarCount>{images.length} 张</ToolbarCount>
+            <ToolbarCount>{visible.length} 张</ToolbarCount>
             <ToolbarSeparator />
-            <StatePreviewSwitch />
+            <Button size="sm" variant="secondary" onClick={() => void refresh()}>
+              重新载入
+            </Button>
           </>
         }
       >
@@ -159,57 +156,53 @@ export function GalleryView(): React.JSX.Element {
       </ViewToolbar>
 
       <div className="min-h-0 flex-1">
-        {previewState === 'loading' ? (
+        {status === 'loading' ? (
+          <LoadingPane />
+        ) : status === 'error' ? (
+          <ErrorState
+            title="读取本地数据失败"
+            description={error ?? '无法读取工作台数据，请重启应用后重试。'}
+            onRetry={() => void refresh()}
+          />
+        ) : scanning ? (
           <div className="flex h-full flex-col">
             <ScanStatus
-              label="正在扫描图片库…"
-              detail="已扫描 128 / 340 个文件，缩略图在后台继续生成"
+              label={`正在扫描「${scan.datasetName}」`}
+              detail={`已处理 ${scan.current} / ${scan.total || '…'} 个文件`}
             />
             <div className="min-h-0 flex-1 overflow-hidden">
               <GridSkeleton tileSize={tileSize} />
             </div>
           </div>
-        ) : previewState === 'error' ? (
-          <ErrorState
-            title="无法读取图片目录"
-            description="D:\ComfyUI\datasets\cyberpunk-scene 当前不可访问，可能是外置磁盘未连接或路径被移动。"
-            onRetry={() =>
-              pushToast({ tone: 'info', title: '重新扫描', description: '已重新开始扫描目录。' })
+        ) : images.length === 0 ? (
+          <EmptyState
+            title="图库里还没有图片"
+            description="把 ComfyUI 的出图目录加进来，工作台会解析每张图嵌入的提示词、模型与 LoRA，并生成缩略图。"
+            action={
+              <Button variant="primary" onClick={() => void addDataset()}>
+                <FolderPlus size={14} />
+                添加图片目录
+              </Button>
             }
           />
-        ) : forcedEmpty || images.length === 0 ? (
+        ) : visible.length === 0 ? (
           <EmptyState
-            title={showFilteredEmpty ? '没有符合条件的图片' : '图库里还没有图片'}
-            description={
-              showFilteredEmpty
-                ? '换一个关键词，或把筛选条件放宽。'
-                : '把 ComfyUI 的出图目录加进来，这里会自动解析每张图的提示词、模型与 LoRA。'
-            }
+            title="没有符合条件的图片"
+            description="换一个关键词，或把筛选条件放宽。"
             action={
-              showFilteredEmpty ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setQuery('')
-                    setSource('all')
-                  }}
-                >
-                  清除筛选
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  onClick={() =>
-                    pushToast({ tone: 'info', title: '添加目录', description: '选择要扫描的文件夹。' })
-                  }
-                >
-                  添加图片目录
-                </Button>
-              )
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setQuery('')
+                  setSource('all')
+                }}
+              >
+                清除筛选
+              </Button>
             }
           />
         ) : (
-          <ImageGrid images={images} tileSize={tileSize} onOpen={() => openInspector()} />
+          <ImageGrid images={visible} tileSize={tileSize} onOpen={() => openInspector()} />
         )}
       </div>
 
@@ -223,40 +216,20 @@ export function GalleryView(): React.JSX.Element {
             <Copy size={13} />
             复制提示词
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              pushToast({ tone: 'info', title: '加入打标队列', description: '已加入待打标队列。' })
-            }
-          >
-            <Sparkles size={13} />
-            加入打标队列
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => pushToast({ tone: 'info', title: '批量加标签', description: '为选中的图片统一添加标签。' })}
-          >
-            <Tag size={13} />
-            加标签
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() =>
-              pushToast({
-                tone: 'warning',
-                title: '已移入回收站',
-                description: `${selectedIds.length} 张图片，可随时撤销。`
-              })
-            }
-          >
-            <Trash2 size={13} />
-            移入回收站
-          </Button>
         </BatchBar>
       ) : null}
+    </div>
+  )
+}
+
+function LoadingPane(): React.JSX.Element {
+  const tileSize = useWorkspace((s) => s.tileSize)
+  return (
+    <div className="flex h-full flex-col">
+      <ScanStatus label="正在读取本地数据…" />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <GridSkeleton tileSize={tileSize} />
+      </div>
     </div>
   )
 }
