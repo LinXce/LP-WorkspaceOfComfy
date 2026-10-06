@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Download, Eye, EyeOff, Plus, Radio, Save, ShieldCheck, Trash2 } from 'lucide-react'
-import { TEMPLATE_BY_MODE } from '@shared/defaults'
+import { Download, Eye, EyeOff, Plus, Radio, RotateCcw, Save, ShieldCheck, Trash2 } from 'lucide-react'
 import type { OutputFormat } from '@shared/types'
 import { useWorkspace, type Density, type MotionLevel } from '@renderer/lib/store'
 import { OUTPUT_FORMAT_OPTIONS, modelOptionsFor } from '@renderer/lib/catalog'
@@ -20,7 +19,9 @@ import {
   TextInput
 } from '@renderer/components/fields'
 import { EndpointDialog } from './EndpointDialog'
+import { PromptDialog } from './PromptDialog'
 import { useEndpointDraft } from './useEndpointDraft'
+import { usePromptDraft } from './usePromptDraft'
 
 export function SettingsView(): React.JSX.Element {
   const settings = useWorkspace((s) => s.settings)
@@ -30,6 +31,13 @@ export function SettingsView(): React.JSX.Element {
   const activateEndpoint = useWorkspace((s) => s.activateEndpoint)
   const removeEndpoint = useWorkspace((s) => s.removeEndpoint)
   const upsertEndpoint = useWorkspace((s) => s.upsertEndpoint)
+  const prompts = useWorkspace((s) => s.prompts)
+  const promptsFile = useWorkspace((s) => s.promptsFile)
+  const activatePrompt = useWorkspace((s) => s.activatePrompt)
+  const removePrompt = useWorkspace((s) => s.removePrompt)
+  const resetPrompt = useWorkspace((s) => s.resetPrompt)
+  const upsertPrompt = useWorkspace((s) => s.upsertPrompt)
+  const setOutputFormat = useWorkspace((s) => s.setOutputFormat)
   const updateSettings = useWorkspace((s) => s.updateSettings)
   const saveSettings = useWorkspace((s) => s.saveSettings)
   const fetchModels = useWorkspace((s) => s.fetchModels)
@@ -44,8 +52,10 @@ export function SettingsView(): React.JSX.Element {
   const setInspectorWidth = useWorkspace((s) => s.setInspectorWidth)
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false)
   const [revealed, setRevealed] = useState(false)
   const { draft, patch } = useEndpointDraft()
+  const { draft: promptDraft, patch: patchPrompt } = usePromptDraft()
 
   const models = modelOptionsFor(draft)
   const usingEnv = Boolean(draft?.envVar.trim())
@@ -53,13 +63,7 @@ export function SettingsView(): React.JSX.Element {
   const envLive = usingEnv && draft && apiKey.variable === draft.envVar.trim()
 
   const changeMode = (mode: string): void => {
-    const next = mode as OutputFormat
-    const known = Object.values(TEMPLATE_BY_MODE)
-    const shouldSwap = known.includes(settings.template.trim())
-    updateSettings({
-      outputFormat: next,
-      ...(shouldSwap ? { template: TEMPLATE_BY_MODE[next] } : {})
-    })
+    setOutputFormat(mode as OutputFormat)
   }
 
   return (
@@ -332,17 +336,110 @@ $env:${draft.envVar || 'FARO_API_KEY'}="你的密钥"
                 />
               }
             />
-            <div className="border-b border-line-soft py-3 last:border-b-0">
-              <Field label="打标提示词模板" hint="模板里会注入受控词表与输出格式要求。">
-                <TextArea
-                  rows={12}
-                  value={settings.template}
-                  onChange={(e) => updateSettings({ template: e.target.value })}
-                  className="font-mono text-[11.5px]"
-                  aria-label="打标提示词模板"
-                />
-              </Field>
+          </Panel>
+
+          <Panel
+            title="提示词模板"
+            bodyClassName="px-4 py-1"
+            actions={
+              promptDraft ? (
+                <Badge tone={promptDraft.builtin ? 'neutral' : 'accent'}>
+                  {promptDraft.builtin ? '内置' : '自定义'}
+                </Badge>
+              ) : null
+            }
+          >
+            <div className="border-b border-line-soft py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-ink">用哪套提示词</p>
+                  <p className="mt-0.5 text-2xs leading-[1.7] text-ink-faint">
+                    选中的那套作为 system prompt 发给模型，改完即时保存到本地文件。
+                    切换输出模式时，内置模板会跟着换成对应模式那套。
+                  </p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => setPromptDialogOpen(true)}>
+                  <Plus size={13} />
+                  添加提示词
+                </Button>
+              </div>
+              <Pills
+                ariaLabel="提示词模板"
+                className="mt-2.5"
+                value={promptDraft?.id ?? ''}
+                onChange={(id) => void activatePrompt(id)}
+                items={prompts.map((item) => ({ value: item.id, label: item.name }))}
+              />
             </div>
+
+            {!promptDraft ? (
+              <div className="py-6">
+                <p className="text-center text-xs text-ink-muted">
+                  还没有提示词，点右上角「添加提示词」新建一套。
+                </p>
+              </div>
+            ) : (
+              <>
+                <SettingRow
+                  label="模板名称"
+                  description="只在上面这排胶囊里显示。"
+                  control={
+                    <TextInput
+                      value={promptDraft.name}
+                      onChange={(e) => patchPrompt({ name: e.target.value })}
+                      placeholder="例如：我的标签模板"
+                      aria-label="模板名称"
+                    />
+                  }
+                />
+                <div className="border-b border-line-soft py-3">
+                  <Field
+                    label="模板内容"
+                    hint="原样作为 system prompt 发出；受控词表和输出格式要求会自动追加在后面。"
+                  >
+                    <TextArea
+                      rows={14}
+                      value={promptDraft.text}
+                      onChange={(e) => patchPrompt({ text: e.target.value })}
+                      className="font-mono text-[11.5px]"
+                      aria-label="模板内容"
+                    />
+                  </Field>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-ink">这套提示词</p>
+                    <p className="mt-0.5 text-2xs leading-[1.7] text-ink-faint">
+                      {promptDraft.builtin
+                        ? '内置模板，内容可以改，也能随时恢复原样。'
+                        : '你自己加的模板，改坏了没法还原内置内容。'}
+                      {prompts.length <= 1 ? ' 这是最后一套，删不掉。' : ''}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {promptDraft.builtin ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void resetPrompt(promptDraft.id)}
+                      >
+                        <RotateCcw size={12} />
+                        恢复内置内容
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={prompts.length <= 1}
+                      onClick={() => void removePrompt(promptDraft.id)}
+                    >
+                      <Trash2 size={13} />
+                      删除
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </Panel>
 
           <Panel title="存储" bodyClassName="px-4 py-1">
@@ -478,6 +575,12 @@ $env:${draft.envVar || 'FARO_API_KEY'}="你的密钥"
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={(config) => void upsertEndpoint(config)}
+      />
+
+      <PromptDialog
+        open={promptDialogOpen}
+        onOpenChange={setPromptDialogOpen}
+        onSubmit={(prompt) => void upsertPrompt(prompt)}
       />
     </div>
   )

@@ -78,12 +78,12 @@ export function DatasetsInspector(): React.JSX.Element {
           <div className="mt-0.5 flex flex-wrap gap-1.5">
             <Button
               size="sm"
-              variant="secondary"
+              variant="primary"
               disabled={dataset.taggedCount === 0}
               onClick={() => void exportTags(dataset.id)}
             >
               <Download size={13} />
-              导出标签
+              保存标签
             </Button>
             <Button
               size="sm"
@@ -101,9 +101,11 @@ export function DatasetsInspector(): React.JSX.Element {
             </Button>
           </div>
           <p className="text-[10px] leading-4 text-ink-faint">
-            导出会为每张图写出同名的 <span className="font-mono">.txt</span>（标签，逗号分隔）和{' '}
-            <span className="font-mono">.caption</span>（描述）。已有的 .txt 会被覆盖，内容 =
-            原本读到的标签 + 模型生成的标签。
+            「保存标签」会为每张图写出同名的 <span className="font-mono">.txt</span>
+            ：标签模式写逗号分隔的标签串，描述模式写那句自然语言。同名文件会被覆盖。
+          </p>
+          <p className="text-[10px] leading-4 text-ink-faint">
+            打标结果本身随时存在工作台里，不点「保存标签」也不会丢，只是不会写到图片目录。
           </p>
           <p className="text-[10px] leading-4 text-ink-faint">
             移除只会把数据集从工作台里摘掉，不会删除磁盘上的任何文件。

@@ -3,6 +3,7 @@ import { nativeImage } from 'electron'
 import type { ImageMeta, StartTaggingResult, TaggingJob } from '@shared/types'
 import * as db from './db'
 import { activeEndpoint, effectiveApiKey } from './endpoints'
+import { activePromptText } from './prompts'
 import { applyTaggingResults, tagVocabulary } from './workspace'
 
 const MAX_IMAGE_EDGE = 1024
@@ -84,7 +85,7 @@ function encodeImage(filePath: string): string | null {
 
 function buildSystemPrompt(): string {
   const settings = db.loadWorkspace().settings
-  const blocks = [settings.template.trim()]
+  const blocks = [activePromptText().trim()]
 
   if (settings.outputFormat === 'tag' && !settings.allowNewTags) {
     const vocabulary = tagVocabulary()

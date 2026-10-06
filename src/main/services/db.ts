@@ -16,12 +16,9 @@ function sanitizeSettings(raw: Partial<AppSettings> | undefined): AppSettings {
   if (merged.outputFormat !== 'tag' && merged.outputFormat !== 'nl') {
     merged.outputFormat = LEGACY_FORMAT[String(merged.outputFormat)] ?? 'tag'
   }
-  if (typeof merged.template !== 'string' || !merged.template.trim()) {
-    merged.template = DEFAULT_SETTINGS.template
-  }
 
-  // 端点相关信息已经搬到 endpoints.json，这里清掉旧字段
-  for (const key of ['baseUrl', 'apiKey', 'model', 'availableModels']) {
+  // 端点信息搬去了 endpoints.json，导出后缀固定成 .txt，提示词搬去了 prompts.json
+  for (const key of ['baseUrl', 'apiKey', 'model', 'availableModels', 'exportSuffix', 'template']) {
     delete merged[key]
   }
 

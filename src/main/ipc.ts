@@ -6,6 +6,7 @@ import type {
   Dataset,
   EndpointConfig,
   ImageTagPatch,
+  PromptTemplate,
   RawMetadata,
   ScanProgress,
   StartTaggingResult,
@@ -31,6 +32,12 @@ import {
   setActiveEndpoint,
   upsertEndpoint
 } from './services/endpoints'
+import {
+  removePrompt,
+  resetPrompt,
+  setActivePrompt,
+  upsertPrompt
+} from './services/prompts'
 import {
   cancelTagging,
   pauseTagging,
@@ -160,6 +167,26 @@ export function registerIpc(): void {
     return snapshot()
   })
 
+  ipcMain.handle('prompts:upsert', (_event, patch: Partial<PromptTemplate>): WorkspaceSnapshot => {
+    upsertPrompt(patch)
+    return snapshot()
+  })
+
+  ipcMain.handle('prompts:remove', (_event, id: string): WorkspaceSnapshot => {
+    removePrompt(id)
+    return snapshot()
+  })
+
+  ipcMain.handle('prompts:activate', (_event, id: string): WorkspaceSnapshot => {
+    setActivePrompt(id)
+    return snapshot()
+  })
+
+  ipcMain.handle('prompts:reset', (_event, id: string): WorkspaceSnapshot => {
+    resetPrompt(id)
+    return snapshot()
+  })
+
   ipcMain.handle(
     'tagging:start',
     async (_event, imageIds: string[]): Promise<StartTaggingResult> => {
@@ -178,7 +205,6 @@ export function registerIpc(): void {
 
   ipcMain.handle(
     'datasets:export-tags',
-    (_event, scope: string): { written: number; captions: number; skipped: number } =>
-      exportSidecarFiles(scope)
+    (_event, scope: string): { written: number; skipped: number } => exportSidecarFiles(scope)
   )
 }

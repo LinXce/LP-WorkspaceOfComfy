@@ -48,6 +48,15 @@ export interface RawMetadata {
   parameters: string | null
 }
 
+/**
+ * 图片算不算「已打标」。
+ * 标签模式下产出是 tags，描述模式下产出是 caption ——
+ * 只看 tags 会让描述打标的结果永远停在待打标队列里。
+ */
+export function isTagged(image: Pick<ImageMeta, 'tags' | 'caption'>): boolean {
+  return image.tags.length > 0 || Boolean(image.caption?.trim())
+}
+
 /** 手动编辑：传 tags 就是整份覆盖生效标签，传 caption 就是改描述。 */
 export interface ImageTagPatch {
   imageId: string
@@ -95,10 +104,26 @@ export type OutputFormat = 'tag' | 'nl'
 
 export interface TaggingConfig {
   outputFormat: OutputFormat
-  template: string
   concurrency: number
   allowNewTags: boolean
   overwrite: boolean
+}
+
+/**
+ * 一套打标提示词。builtin 标出它是哪套内置模板，
+ * 用来在切换输出模式时自动跟着换（用户自己加的模板不带这个标记）。
+ */
+export interface PromptTemplate {
+  id: string
+  name: string
+  text: string
+  builtin?: OutputFormat
+}
+
+export interface PromptStore {
+  version: number
+  activeId: string | null
+  items: PromptTemplate[]
 }
 
 /**
@@ -172,10 +197,14 @@ export interface WorkspaceSnapshot {
   endpoints: EndpointConfig[]
   activeEndpointId: string | null
   activeEndpoint: EndpointConfig | null
+  prompts: PromptTemplate[]
+  activePromptId: string | null
+  activePrompt: PromptTemplate | null
   apiKey: ApiKeyState
   envCandidates: string[]
   dataDir: string
   endpointsFile: string
+  promptsFile: string
 }
 
 export interface ConnectionTestResult {

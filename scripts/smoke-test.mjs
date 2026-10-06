@@ -169,8 +169,12 @@ async function connect() {
   throw new Error('连不上渲染进程的调试端口')
 }
 
-async function setInput(ariaLabel, value, tag = 'INPUT') {
-  const selector = `[aria-label="${ariaLabel}"]`
+/**
+ * 填输入框。scope 用来限定范围 —— 有些 aria-label 会在页面和弹窗里各出现一次
+ * （比如「模板名称」），不限定就会填错那个。
+ */
+async function setInput(ariaLabel, value, tag = 'INPUT', scope = 'body') {
+  const selector = `${scope} [aria-label="${ariaLabel}"]`
   return evalJs(`(() => {
     const el = document.querySelector(${JSON.stringify(selector)})
     if (!el) return false
@@ -511,7 +515,97 @@ async function main() {
     return '已放回'
   })
 
-  await step('导出标签写出 .txt', async () => {
+  await step('描述打标的结果也算「已打标」', async () => {
+    // nl 模式产出的是 caption 而不是 tags，只看 tags 会让它永远卡在待打标
+    await evalJs(`(() => {
+      const b = [...document.querySelectorAll('[aria-label="打标模式"] [role="radio"]')].find(x => x.textContent === '描述')
+      if (b) b.click()
+    })(), true`)
+    await wait(800)
+    await clickTab('手动编辑')
+    await wait(700)
+
+    const picked = await evalJs(`(() => {
+      const rows = [...document.querySelectorAll('main ul li button')]
+      const target = rows.find((r) => r.innerText.includes('无内容'))
+      if (!target) return null
+      target.click()
+      return target.innerText.split('\\n')[0]
+    })()`)
+    if (!picked) throw new Error('没有「无内容」的图片可用于测试')
+
+    await wait(500)
+    await setInput('打标文本', '一位少女站在黄昏的户外', 'TEXTAREA')
+    await wait(2000)
+
+    const stored = await evalJs(`(async () => {
+      const s = await window.workspace.workspace.snapshot()
+      const img = s.images.find(i => i.fileName === ${JSON.stringify(picked)})
+      return { tags: img.tags.length, caption: img.caption ?? null }
+    })()`)
+    if (stored.tags !== 0 || !stored.caption) {
+      throw new Error(`没造出「只有描述」的状态：tags=${stored.tags} caption=${stored.caption}`)
+    }
+
+    await clickTab('已有标签')
+    await wait(800)
+    const listed = await evalJs(
+      `document.querySelector('main').innerText.includes(${JSON.stringify(picked)})`
+    )
+    if (!listed) {
+      const tabs = await evalJs(
+        `[...document.querySelectorAll('[aria-label="打标页面"] [role="radio"]')].map(b => b.textContent).join(' / ')`
+      )
+      throw new Error(`只有描述没被算作已打标，仍在待打标（页签：${tabs}）`)
+    }
+
+    await evalJs(`(() => {
+      const b = [...document.querySelectorAll('[aria-label="打标模式"] [role="radio"]')].find(x => x.textContent === '标签')
+      if (b) b.click()
+    })(), true`)
+    await wait(600)
+    return `${picked} 只有 caption 也进了已打标页`
+  })
+
+  await step('描述模式下打标文本会兜底显示标签串', async () => {
+    await evalJs(`(() => {
+      const b = [...document.querySelectorAll('[aria-label="打标模式"] [role="radio"]')].find(x => x.textContent === '描述')
+      if (b) b.click()
+    })(), true`)
+    await wait(800)
+    await clickTab('手动编辑')
+    await wait(700)
+
+    const picked = await evalJs(`(() => {
+      const rows = [...document.querySelectorAll('main ul li button')]
+      const target = rows.find((r) => r.innerText.includes('个标签'))
+      if (!target) return null
+      target.click()
+      return target.innerText.split('\\n')[0]
+    })()`)
+    if (!picked) throw new Error('没有「只有标签、没有描述」的图片可用于测试')
+    await wait(600)
+
+    const shown = await evalJs(`document.querySelector('[aria-label="打标文本"]').value`)
+    const expected = await evalJs(`(async () => {
+      const s = await window.workspace.workspace.snapshot()
+      const img = s.images.find(i => i.fileName === ${JSON.stringify(picked)})
+      return img.tags.join(', ')
+    })()`)
+    if (!expected) throw new Error('选中的图片没有标签，测不出兜底')
+    if (shown !== expected) {
+      throw new Error(`描述模式下应兜底显示「${expected}」，实际「${shown}」`)
+    }
+
+    await evalJs(`(() => {
+      const b = [...document.querySelectorAll('[aria-label="打标模式"] [role="radio"]')].find(x => x.textContent === '标签')
+      if (b) b.click()
+    })(), true`)
+    await wait(600)
+    return `${picked} 在描述模式下也显示了「${shown}」`
+  })
+
+  await step('保存标签写出 .txt', async () => {
     const result = await evalJs(
       `window.workspace.datasets.exportTags('all').then(r => r)`
     )
@@ -522,6 +616,34 @@ async function main() {
     const content = readFileSync(anyTxt, 'utf8')
     if (!content.trim()) throw new Error('.txt 是空的')
     return `${result.written} 个文件，例：${content.slice(0, 40)}`
+  })
+
+  await step('「保存标签」按钮是蓝色主按钮', async () => {
+    const button = await evalJs(`(() => {
+      const b = [...document.querySelectorAll('main button')].find(x => x.textContent.trim() === '保存标签')
+      if (!b) return null
+      const style = getComputedStyle(b)
+      return { text: b.textContent.trim(), bg: style.backgroundColor, color: style.color }
+    })()`)
+    if (!button) throw new Error('没找到「保存标签」按钮')
+    const rgb = button.bg.match(/\d+(\.\d+)?/g)?.map(Number) ?? []
+    if (rgb.length < 3) throw new Error(`取不到底色：${button.bg}`)
+    if (rgb.length > 3 && rgb[3] === 0) throw new Error(`按钮底色是透明的，不像主按钮：${button.bg}`)
+    if (!(rgb[2] > rgb[0] && rgb[2] > rgb[1])) {
+      throw new Error(`底色不是蓝色系：${button.bg}`)
+    }
+    return `${button.text} · 底色 ${button.bg}`
+  })
+
+  await step('打标结果不导出也不会丢', async () => {
+    // 工作区文件里必须有打标结果，而导出只是把它写到图片目录
+    const file = join(userData, 'data', 'workspace.json')
+    const raw = readFileSync(file, 'utf8')
+    const parsed = JSON.parse(raw)
+    const tagged = parsed.images.filter((image) => (image.tags ?? []).length > 0 || image.caption)
+    if (tagged.length === 0) throw new Error('workspace.json 里没有任何打标结果')
+    const sample = tagged[0]
+    return `${tagged.length} 张有结果，例：${sample.fileName} tags=${(sample.tags ?? []).length} caption=${sample.caption ? '有' : '无'}`
   })
 
   // ------------------------------------------------------------ 标签库
@@ -577,6 +699,8 @@ async function main() {
   })
 
   await step('API 配置文件独立落盘', async () => {
+    // 端点编辑是防抖写入，多等一会儿再查，别把测试写成时序边缘
+    await wait(1200)
     const file = await evalJs(`window.workspace.workspace.snapshot().then(s => s.endpointsFile)`)
     if (!existsSync(file)) throw new Error(`endpoints.json 不存在：${file}`)
     const parsed = JSON.parse(readFileSync(file, 'utf8'))
@@ -606,6 +730,115 @@ async function main() {
     )
     await wait(400)
     return `预置 ${dialog.presets.length} 个，字段 ${dialog.fields.length} 个`
+  })
+
+  // ------------------------------------------------------------ 提示词模板
+
+  await step('提示词模板：内置两套，独立落盘', async () => {
+    await clickNav(5)
+    await wait(800)
+    const pills = await evalJs(
+      `[...document.querySelectorAll('[role="radiogroup"][aria-label="提示词模板"] [role="radio"]')].map(b => b.textContent)`
+    )
+    if (pills.length < 2) throw new Error(`内置模板应至少 2 套，实际 ${pills.length}`)
+    const file = await evalJs(`window.workspace.workspace.snapshot().then(s => s.promptsFile)`)
+    if (!existsSync(file)) throw new Error(`prompts.json 不存在：${file}`)
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    if (!Array.isArray(parsed.items) || parsed.items.length < 2) throw new Error('prompts.json 内容不全')
+    if (!parsed.items.some((item) => item.builtin === 'tag') || !parsed.items.some((item) => item.builtin === 'nl')) {
+      throw new Error('内置的 tag / nl 模板不齐')
+    }
+    return `${pills.join(' / ')}，文件里 ${parsed.items.length} 套`
+  })
+
+  await step('添加提示词弹窗能新增并切过去', async () => {
+    const opened = await clickButton('添加提示词')
+    if (!opened) throw new Error('没找到「添加提示词」按钮')
+    await wait(700)
+    const dialog = await evalJs(`(() => {
+      const d = document.querySelector('[role="dialog"][aria-label="添加提示词"]')
+      if (!d) return null
+      return {
+        starters: [...d.querySelectorAll('[role="radio"]')].map(b => b.textContent),
+        fields: [...d.querySelectorAll('input, textarea')].map(i => i.getAttribute('aria-label'))
+      }
+    })()`)
+    if (!dialog) throw new Error('弹窗没打开')
+    if (!dialog.starters.some((s) => s.includes('空白'))) throw new Error('缺少「空白」起点')
+
+    await setInput(
+      '模板名称',
+      '冒烟测试模板',
+      'INPUT',
+      '[role="dialog"][aria-label="添加提示词"]'
+    )
+    await wait(500)
+    await evalJs(
+      `[...document.querySelectorAll('[role="dialog"][aria-label="添加提示词"] button')].find(b => b.textContent.trim() === '保存').click(), true`
+    )
+    await wait(1600)
+
+    const state = await evalJs(`(async () => {
+      const s = await window.workspace.workspace.snapshot()
+      return { active: s.activePrompt?.name ?? null, count: s.prompts.length }
+    })()`)
+    if (state.active !== '冒烟测试模板') throw new Error(`新增后没切过去，当前是「${state.active}」`)
+    return `${dialog.starters.length} 个起点，新增后当前用「${state.active}」（共 ${state.count} 套）`
+  })
+
+  await step('提示词改动即时落盘，切模式会换上对应内置模板', async () => {
+    await setInput('模板内容', 'MODE TEST PROMPT', 'TEXTAREA')
+    await wait(1600)
+
+    const file = await evalJs(`window.workspace.workspace.snapshot().then(s => s.promptsFile)`)
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    const saved = parsed.items.find((item) => item.name === '冒烟测试模板')
+    if (saved?.text.trim() !== 'MODE TEST PROMPT') {
+      throw new Error(`模板内容没落盘：${JSON.stringify(saved?.text)}`)
+    }
+
+    // 切回内置标签模板 —— 必须走界面，直接调 API 的话 store 不会刷新
+    await evalJs(`(() => {
+      const b = [...document.querySelectorAll('[aria-label="提示词模板"] [role="radio"]')].find(x => x.textContent.trim() === '内置 · 标签')
+      if (b) b.click()
+    })(), true`)
+    await wait(900)
+    const switched = await evalJs(
+      `window.workspace.workspace.snapshot().then(s => s.activePrompt?.name ?? null)`
+    )
+    if (switched !== '内置 · 标签') throw new Error(`没能切回内置标签模板，当前是「${switched}」`)
+
+    const clickFormat = (label) =>
+      evalJs(`(() => {
+        const b = [...document.querySelectorAll('[aria-label="默认输出格式"] [role="radio"]')].find(x => x.textContent.trim() === ${JSON.stringify(label)})
+        if (b) b.click()
+      })(), true`)
+
+    await clickFormat('描述')
+    await wait(1000)
+    const after = await evalJs(`(async () => {
+      const s = await window.workspace.workspace.snapshot()
+      return { builtin: s.activePrompt?.builtin ?? null, name: s.activePrompt?.name ?? null }
+    })()`)
+    if (after.builtin !== 'nl') {
+      throw new Error(`切到描述模式后没换上内置描述模板，当前是「${after.name}」`)
+    }
+
+    await clickFormat('标签')
+    await wait(600)
+
+    // 删掉测试模板，别影响后面的检查
+    await evalJs(`(async () => {
+      const s = await window.workspace.workspace.snapshot()
+      const mine = s.prompts.find(p => p.name === '冒烟测试模板')
+      if (mine) await window.workspace.prompts.remove(mine.id)
+    })()`)
+    await wait(800)
+    const left = await evalJs(
+      `window.workspace.workspace.snapshot().then(s => s.prompts.map(p => p.name))`
+    )
+    if (left.includes('冒烟测试模板')) throw new Error('测试模板没删掉')
+    return `内容落盘 ✓，切模式自动换成「${after.name}」✓，删除 ✓（剩 ${left.length} 套）`
   })
 
   // ------------------------------------------------------------ 窗口行为
@@ -649,6 +882,39 @@ async function main() {
     return `未最大化 ${before.w}×${before.h} → 最大化 ${maximized.w}×${maximized.h} → 还原 ${restored.w}×${restored.h}`
   })
 
+  await step('动效级别「完整」不会被系统偏好掐掉', async () => {
+    await clickNav(5)
+    await wait(800)
+    const pick = (label) =>
+      evalJs(`(() => {
+        const b = [...document.querySelectorAll('[aria-label="动效级别"] [role="radio"]')].find(x => x.textContent.trim() === ${JSON.stringify(label)})
+        if (b) b.click()
+      })(), true`)
+    const dur = () =>
+      evalJs(`(() => {
+        const root = document.documentElement
+        return { motion: root.dataset.motion, base: getComputedStyle(root).getPropertyValue('--dur-base').trim() }
+      })()`)
+
+    await pick('完整')
+    await wait(500)
+    const full = await dur()
+    if (full.motion !== 'full') throw new Error(`动效级别没切到完整：${full.motion}`)
+    // 系统开了「减少动态效果」时，之前 CSS 的媒体查询会把用户明确选的「完整」也清零
+    if (Number.parseFloat(full.base) <= 0) {
+      throw new Error(`用户选了「完整」，但时长仍是 ${full.base}（被系统偏好盖掉了）`)
+    }
+
+    await pick('无')
+    await wait(400)
+    const none = await dur()
+    if (Number.parseFloat(none.base) !== 0) throw new Error(`选「无」后时长应为 0，实际 ${none.base}`)
+
+    await pick('完整')
+    await wait(400)
+    return `完整 → ${full.base}；无 → 0s`
+  })
+
   await step('滚动条走自定义圆角样式', async () => {
     const scrollbar = await evalJs(`(() => {
       const style = getComputedStyle(document.body)
@@ -682,12 +948,26 @@ async function main() {
     await clickNav(5)
     await wait(700)
     const last = await read()
+
     if (!first.hasBar) throw new Error('高亮块里没有柠檬绿竖条')
+    if (first.height !== 52) throw new Error(`高亮块高度应为 52，实际 ${first.height}`)
     if (first.transform === last.transform) {
       throw new Error(`切换视图后高亮块没移动：${first.transform}`)
     }
-    if (parseFloat(last.duration) <= 0) throw new Error('高亮块没有过渡时长')
-    return `${first.transform} → ${last.transform}，过渡 ${last.duration}`
+    if (last.transform !== 'matrix(1, 0, 0, 1, 0, 280)') {
+      throw new Error(`第 6 项的高亮位置不对：${last.transform}`)
+    }
+
+    // 系统开了「减少动态效果」或应用把动效设为「无」时，时长会被归零，这是对的
+    const animated = await evalJs(
+      `!matchMedia('(prefers-reduced-motion: reduce)').matches && document.documentElement.dataset.motion !== 'none'`
+    )
+    if (animated && parseFloat(last.duration) <= 0) {
+      throw new Error(`动效已开启，但高亮块过渡时长为 ${last.duration}`)
+    }
+    return animated
+      ? `${first.transform} → ${last.transform}，过渡 ${last.duration}`
+      : `${first.transform} → ${last.transform}（系统要求减少动效，已按 0ms 直接吸附）`
   })
 
   await step('全局快捷键 Ctrl+B 开合检视面板', async () => {

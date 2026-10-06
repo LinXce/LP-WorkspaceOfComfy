@@ -115,10 +115,7 @@ html[data-motion='none'] {
   --ease-out: linear;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --dur-fast: 0ms;
-    --dur-base: 0ms;
-    --dur-exit: 0ms;
-  }
-}
+/* 这里刻意不写 @media (prefers-reduced-motion: reduce) 去把时长清零：
+   那会盖掉用户在设置里明确选的「完整」，让人以为动画消失了。
+   系统偏好改由 store 里 motion 的初始值来尊重（默认值取自该媒体查询），
+   而 data-motion 一旦设上，就以应用自己的设置为准。 */

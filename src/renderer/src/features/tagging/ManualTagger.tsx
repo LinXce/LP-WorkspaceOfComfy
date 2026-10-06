@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, RotateCcw, Tags as TagsIcon, Undo2 } from 'lucide-react'
 import type { ImageMeta, OutputFormat } from '@shared/types'
+import { isTagged } from '@shared/types'
 import { useWorkspace } from '@renderer/lib/store'
 import { SOURCE_LABEL } from '@renderer/lib/catalog'
 import { cn } from '@renderer/lib/utils'
@@ -236,17 +237,19 @@ function TagTextArea({
 }
 
 function CaptionArea({
-  caption,
+  value,
+  canClear,
   onChange
 }: {
-  caption: string
+  value: string
+  canClear: boolean
   onChange: (value: string) => void
 }): React.JSX.Element {
   return (
     <>
       <TextArea
         rows={5}
-        value={caption}
+        value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="一位少女站在黄昏的户外，逆光……"
         className="text-[12.5px] leading-[1.7]"
@@ -254,7 +257,7 @@ function CaptionArea({
       />
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] text-ink-faint">改动会自动保存</span>
-        {caption ? (
+        {canClear ? (
           <button
             type="button"
             onClick={() => onChange('')}
@@ -269,8 +272,9 @@ function CaptionArea({
 }
 
 /**
- * 打标文本 = 真正会导出的那段文字，跟着当前模式走：
- * 标签模式是逗号分隔的 tag（写 .txt），描述模式是自然语言（写 .caption）。
+ * 打标文本 = 真正会保存的那段文字：
+ * 标签模式是逗号分隔的 tag，描述模式是自然语言，
+ * 描述为空时回落显示标签串，保证从旁车 .txt 读进来的内容在这两个模式里都看得见。
  */
 function TagTextSection({
   mode,
@@ -285,18 +289,25 @@ function TagTextSection({
   commitTags: (next: string[]) => void
   changeCaption: (value: string) => void
 }): React.JSX.Element {
+  const fallback = tags.join(', ')
+  const usingFallback = mode === 'nl' && !caption.trim() && fallback.length > 0
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-2xs font-medium text-ink-muted">打标文本</span>
         <span className="text-[10px] text-ink-faint">
-          {mode === 'tag' ? '导出到同名 .txt' : '导出到同名 .caption'}
+          {mode === 'tag' ? '标签串' : '自然语言'}，保存到同名 .txt
         </span>
       </div>
       {mode === 'tag' ? (
         <TagTextArea tags={tags} commitTags={commitTags} />
       ) : (
-        <CaptionArea caption={caption} onChange={changeCaption} />
+        <CaptionArea
+          value={usingFallback ? fallback : caption}
+          canClear={!usingFallback && caption.length > 0}
+          onChange={changeCaption}
+        />
       )}
     </div>
   )
@@ -315,8 +326,9 @@ export function ManualTagger({ images }: { images: ImageMeta[] }): React.JSX.Ele
     const sorted = [...images].sort((a, b) => b.mtime - a.mtime)
     const keyword = query.trim().toLowerCase()
     return sorted.filter((image) => {
-      if (filter === 'untagged' && image.tags.length > 0) return false
-      if (filter === 'tagged' && image.tags.length === 0) return false
+      const done = isTagged(image)
+      if (filter === 'untagged' && done) return false
+      if (filter === 'tagged' && !done) return false
       if (!keyword) return true
       return (
         image.fileName.toLowerCase().includes(keyword) ||
@@ -365,7 +377,11 @@ export function ManualTagger({ images }: { images: ImageMeta[] }): React.JSX.Ele
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs text-ink-soft">{image.fileName}</span>
                     <span className="block truncate text-[10px] text-ink-faint">
-                      {image.tags.length > 0 ? `${image.tags.length} 个标签` : '无标签'}
+                      {image.tags.length > 0
+                        ? `${image.tags.length} 个标签`
+                        : image.caption
+                          ? '只有描述'
+                          : '无内容'}
                       {image.requeued ? ' · 重新排队' : ''}
                     </span>
                   </span>

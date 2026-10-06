@@ -13,6 +13,7 @@ export function TaggingInspector(): React.JSX.Element {
   const images = useWorkspace((s) => s.images)
   const tags = useWorkspace((s) => s.tags)
   const activeEndpoint = useWorkspace((s) => s.activeEndpoint)
+  const activePrompt = useWorkspace((s) => s.activePrompt)
   const settings = useWorkspace((s) => s.settings)
   const updateSettings = useWorkspace((s) => s.updateSettings)
   const requeueImages = useWorkspace((s) => s.requeueImages)
@@ -185,8 +186,16 @@ export function TaggingInspector(): React.JSX.Element {
       </InspectorGroup>
 
       <InspectorGroup title="提示词模板">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <span className="truncate text-xs text-ink" title={activePrompt?.name}>
+            {activePrompt?.name ?? '（未选择，用内置标签模板）'}
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => setView('settings')}>
+            管理
+          </Button>
+        </div>
         <pre className="max-h-52 overflow-auto rounded-control border border-line-soft bg-inset p-2 font-mono text-[10.5px] leading-[1.6] text-ink-muted">
-          {settings.template}
+          {activePrompt?.text ?? ''}
         </pre>
       </InspectorGroup>
     </div>

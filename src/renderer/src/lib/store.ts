@@ -9,6 +9,8 @@ import type {
   EndpointConfig,
   ImageMeta,
   ImageTagPatch,
+  OutputFormat,
+  PromptTemplate,
   RawMetadata,
   ScanProgress,
   Tag,
@@ -19,6 +21,14 @@ import type {
 export type ViewId = 'home' | 'gallery' | 'datasets' | 'tagging' | 'tags' | 'settings'
 export type Density = 'comfortable' | 'compact'
 export type TaggingTab = 'pending' | 'finished' | 'manual'
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+  )
+}
+
 export type MotionLevel = 'full' | 'reduced' | 'none'
 export type ToastTone = 'info' | 'success' | 'warning' | 'danger'
 export type DataStatus = 'loading' | 'ready' | 'error'
@@ -85,6 +95,9 @@ interface WorkspaceState {
   endpoints: EndpointConfig[]
   activeEndpoint: EndpointConfig | null
   endpointsFile: string
+  prompts: PromptTemplate[]
+  activePrompt: PromptTemplate | null
+  promptsFile: string
   dataDir: string
   appVersion: string
   scan: ScanProgress | null
@@ -117,11 +130,16 @@ interface WorkspaceState {
   }) => Promise<void>
   loadRawMetadata: (imageId: string) => Promise<RawMetadata | null>
   updateSettings: (patch: Partial<AppSettings>) => void
+  setOutputFormat: (mode: OutputFormat) => void
   saveSettings: () => Promise<void>
   fetchModels: () => Promise<ConnectionTestResult | null>
   upsertEndpoint: (patch: Partial<EndpointConfig>) => Promise<void>
   removeEndpoint: (id: string) => Promise<void>
   activateEndpoint: (id: string) => Promise<void>
+  upsertPrompt: (patch: Partial<PromptTemplate>) => Promise<void>
+  removePrompt: (id: string) => Promise<void>
+  activatePrompt: (id: string) => Promise<void>
+  resetPrompt: (id: string) => Promise<void>
 }
 
 let toastSeq = 0
@@ -144,7 +162,9 @@ export const useWorkspace = create<WorkspaceState>()(
 
     density: 'comfortable',
     setDensity: (density) => set((s) => void (s.density = density)),
-    motion: 'full',
+    // 默认跟随系统的「减少动态效果」，但这个值一旦被设置面板改过就以它为准。
+    // 之前用 CSS 的 prefers-reduced-motion 直接清零时长，会把用户明确选的「完整」也盖掉。
+    motion: prefersReducedMotion() ? 'reduced' : 'full',
     setMotion: (motion) => set((s) => void (s.motion = motion)),
 
     tileSize: 168,
@@ -227,6 +247,9 @@ export const useWorkspace = create<WorkspaceState>()(
     endpoints: [],
     activeEndpoint: null,
     endpointsFile: '',
+    prompts: [],
+    activePrompt: null,
+    promptsFile: '',
     dataDir: '',
     appVersion: '',
     scan: null,
@@ -255,6 +278,9 @@ export const useWorkspace = create<WorkspaceState>()(
           s.endpoints = snapshot.endpoints
           s.activeEndpoint = snapshot.activeEndpoint
           s.endpointsFile = snapshot.endpointsFile
+          s.prompts = snapshot.prompts
+          s.activePrompt = snapshot.activePrompt
+          s.promptsFile = snapshot.promptsFile
           s.dataDir = snapshot.dataDir
           s.appVersion = version
           s.status = 'ready'
@@ -361,6 +387,19 @@ export const useWorkspace = create<WorkspaceState>()(
         s.unsavedChanges = true
       }),
 
+    /**
+     * 切换输出模式。如果当前用的正好是内置提示词，
+     * 就顺手换到新模式对应的那套；用户自己加的模板不动。
+     */
+    setOutputFormat: (mode) => {
+      get().updateSettings({ outputFormat: mode })
+      const { activePrompt, prompts } = get()
+      if (activePrompt?.builtin && activePrompt.builtin !== mode) {
+        const target = prompts.find((item) => item.builtin === mode)
+        if (target) void get().activatePrompt(target.id)
+      }
+    },
+
     saveSettings: async () => {
       const api = bridge()
       if (!api) return
@@ -459,6 +498,79 @@ export const useWorkspace = create<WorkspaceState>()(
         get().pushToast({
           tone: 'danger',
           title: '切换配置失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    upsertPrompt: async (patch) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.prompts.upsert(patch)
+        set((s) => {
+          s.prompts = snap.prompts
+          s.activePrompt = snap.activePrompt
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '保存提示词失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    removePrompt: async (id) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.prompts.remove(id)
+        set((s) => {
+          s.prompts = snap.prompts
+          s.activePrompt = snap.activePrompt
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '删除提示词失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    activatePrompt: async (id) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.prompts.activate(id)
+        set((s) => {
+          s.prompts = snap.prompts
+          s.activePrompt = snap.activePrompt
+        })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '切换提示词失败',
+          description: error instanceof Error ? error.message : String(error)
+        })
+      }
+    },
+
+    resetPrompt: async (id) => {
+      const api = bridge()
+      if (!api) return
+      try {
+        const snap = await api.prompts.reset(id)
+        set((s) => {
+          s.prompts = snap.prompts
+          s.activePrompt = snap.activePrompt
+        })
+        get().pushToast({ tone: 'info', title: '已恢复成内置内容' })
+      } catch (error) {
+        get().pushToast({
+          tone: 'danger',
+          title: '恢复失败',
           description: error instanceof Error ? error.message : String(error)
         })
       }
@@ -582,12 +694,11 @@ export const useWorkspace = create<WorkspaceState>()(
       try {
         const result = await api.datasets.exportTags(scope)
         const parts = [`已写出 ${result.written} 个 .txt`]
-        if (result.captions > 0) parts.push(`${result.captions} 个 .caption`)
-        if (result.skipped > 0) parts.push(`${result.skipped} 张没有标签、已跳过`)
+        if (result.skipped > 0) parts.push(`${result.skipped} 张没有内容、已跳过`)
         get().pushToast({
-          tone: result.written + result.captions > 0 ? 'success' : 'warning',
+          tone: result.written > 0 ? 'success' : 'warning',
           title: parts.join(' · '),
-          description: '文件写在同一目录下，覆盖同名 .txt。'
+          description: '文件写在同一目录下，覆盖同名 .txt。内容跟当前输出模式走。'
         })
       } catch (error) {
         get().pushToast({

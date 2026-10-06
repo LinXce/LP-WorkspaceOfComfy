@@ -11,7 +11,7 @@ import {
   Undo2
 } from 'lucide-react'
 import type { OutputFormat } from '@shared/types'
-import { TEMPLATE_BY_MODE } from '@shared/defaults'
+import { isTagged } from '@shared/types'
 import { useWorkspace, type TaggingTab } from '@renderer/lib/store'
 import { OUTPUT_FORMAT_OPTIONS, modelOptionsFor } from '@renderer/lib/catalog'
 import { cn, formatCount } from '@renderer/lib/utils'
@@ -56,6 +56,7 @@ export function TaggingView(): React.JSX.Element {
   const datasets = useWorkspace((s) => s.datasets)
   const settings = useWorkspace((s) => s.settings)
   const updateSettings = useWorkspace((s) => s.updateSettings)
+  const setOutputFormat = useWorkspace((s) => s.setOutputFormat)
   const activeEndpoint = useWorkspace((s) => s.activeEndpoint)
   const upsertEndpoint = useWorkspace((s) => s.upsertEndpoint)
   const tagging = useWorkspace((s) => s.tagging)
@@ -84,8 +85,9 @@ export function TaggingView(): React.JSX.Element {
 
   const { pending, finished, uniqueTags } = useMemo(() => {
     const sorted = [...scoped].sort((a, b) => b.mtime - a.mtime)
-    const open = sorted.filter((image) => image.tags.length === 0 || image.requeued)
-    const closed = sorted.filter((image) => image.tags.length > 0 && !image.requeued)
+    // 描述模式下产出是 caption 而不是 tags，所以两边都要算「已打标」
+    const open = sorted.filter((image) => !isTagged(image) || image.requeued)
+    const closed = sorted.filter((image) => isTagged(image) && !image.requeued)
     const vocabulary = new Set<string>()
     for (const image of sorted) for (const tag of image.tags) vocabulary.add(tag)
     return { pending: open, finished: closed, uniqueTags: vocabulary.size }
@@ -109,12 +111,7 @@ export function TaggingView(): React.JSX.Element {
       : `将对 ${targets.length} 张图片调用 ${activeEndpoint?.model || '（未选模型）'}`
 
   const changeMode = (mode: OutputFormat): void => {
-    const known = Object.values(TEMPLATE_BY_MODE)
-    const shouldSwap = known.includes(settings.template.trim())
-    updateSettings({
-      outputFormat: mode,
-      ...(shouldSwap ? { template: TEMPLATE_BY_MODE[mode] } : {})
-    })
+    setOutputFormat(mode)
   }
 
   const datasetOptions = useMemo(
@@ -170,12 +167,12 @@ export function TaggingView(): React.JSX.Element {
             )}
             <Button
               size="sm"
-              variant="ghost"
+              variant="primary"
               disabled={finished.length === 0}
               onClick={() => void exportTags(filter)}
             >
               <Download size={13} />
-              导出标签
+              保存标签
             </Button>
             <ToolbarSeparator />
             <Button size="sm" variant="ghost" onClick={() => setView('settings')}>
@@ -353,6 +350,11 @@ export function TaggingView(): React.JSX.Element {
                           <span className="min-w-0 flex-1 truncate text-xs text-ink-soft">
                             {image.fileName}
                           </span>
+                          {image.tags.length === 0 && image.caption ? (
+                            <span className="hidden shrink-0 text-[10px] text-ink-faint lg:inline">
+                              已有描述
+                            </span>
+                          ) : null}
                           {image.tags.length > 0 ? (
                             <span className="hidden shrink-0 text-[10px] text-ink-faint lg:inline">
                               还有 {image.tags.length} 个标签
@@ -361,11 +363,9 @@ export function TaggingView(): React.JSX.Element {
                           <span
                             className={cn(
                               'shrink-0 rounded-pill border px-1.5 py-px text-[10px]',
-                              isCurrent
+                              isCurrent || image.requeued
                                 ? 'border-accent/40 bg-accent-soft text-accent'
-                                : image.requeued
-                                  ? 'border-accent/40 bg-accent-soft text-accent'
-                                  : 'border-line bg-card text-ink-muted'
+                                : 'border-line bg-card text-ink-muted'
                             )}
                           >
                             {isCurrent ? '打标中' : image.requeued ? '重新排队' : '排队中'}

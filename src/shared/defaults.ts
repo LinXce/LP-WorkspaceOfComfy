@@ -29,7 +29,6 @@ export const DEFAULT_PROMPT_TEMPLATE = TAG_PROMPT_TEMPLATE
 
 export const DEFAULT_SETTINGS: AppSettings = {
   outputFormat: 'tag',
-  template: TAG_PROMPT_TEMPLATE,
   concurrency: 3,
   timeoutMs: 60000,
   allowNewTags: true,
@@ -42,6 +41,14 @@ export const TEMPLATE_BY_MODE: Record<OutputFormat, string> = {
   tag: TAG_PROMPT_TEMPLATE,
   nl: NL_PROMPT_TEMPLATE
 }
+
+export const PROMPT_FILE_VERSION = 1
+
+/** 内置提示词模板，首次运行会落成两条可编辑的模板。 */
+export const BUILTIN_PROMPTS: { mode: OutputFormat; name: string; text: string }[] = [
+  { mode: 'tag', name: '内置 · 标签', text: TAG_PROMPT_TEMPLATE },
+  { mode: 'nl', name: '内置 · 描述', text: NL_PROMPT_TEMPLATE }
+]
 
 export interface EndpointPreset {
   id: string

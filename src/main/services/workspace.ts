@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, writeFileSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import { API_KEY_ENV_CANDIDATES } from '@shared/defaults'
-import { authModeOf, type AppSettings, type Dataset, type EndpointConfig, type ImageMeta, type ImageTagPatch, type RawMetadata, type ScanProgress, type Tag, type TagCategory, type WorkspaceSnapshot, type ConnectionTestResult } from '@shared/types'
+import { authModeOf, isTagged, type AppSettings, type Dataset, type EndpointConfig, type ImageMeta, type ImageTagPatch, type RawMetadata, type ScanProgress, type Tag, type TagCategory, type WorkspaceSnapshot, type ConnectionTestResult } from '@shared/types'
 import * as db from './db'
 import {
   activeEndpoint,
@@ -13,6 +13,7 @@ import {
   upsertEndpoint
 } from './endpoints'
 import { readRawMetadata } from './metadata'
+import { activePrompt, listPrompts, promptsFilePath } from './prompts'
 import { scanFolder } from './scanner'
 
 type ProgressFn = (progress: ScanProgress) => void
@@ -26,7 +27,7 @@ function withCounts(dataset: Dataset, images: ImageMeta[]): Dataset {
   return {
     ...dataset,
     imageCount: own.length,
-    taggedCount: own.filter((image) => image.tags.length > 0).length
+    taggedCount: own.filter((image) => isTagged(image)).length
   }
 }
 
@@ -52,6 +53,7 @@ export function snapshot(): WorkspaceSnapshot {
   const state = db.loadWorkspace()
   const endpoints = listEndpoints()
   const active = activeEndpoint()
+  const prompt = activePrompt()
 
   return {
     datasets: state.datasets.map((dataset) => withCounts(dataset, state.images)),
@@ -61,10 +63,14 @@ export function snapshot(): WorkspaceSnapshot {
     endpoints,
     activeEndpointId: active?.id ?? null,
     activeEndpoint: active,
+    prompts: listPrompts(),
+    activePromptId: prompt?.id ?? null,
+    activePrompt: prompt,
     apiKey: resolveApiKey(),
     envCandidates: [...API_KEY_ENV_CANDIDATES],
     dataDir: db.dataDir(),
-    endpointsFile: endpointsFilePath()
+    endpointsFile: endpointsFilePath(),
+    promptsFile: promptsFilePath()
   }
 }
 
@@ -358,39 +364,36 @@ export function updateImageTags(patch: ImageTagPatch): void {
   db.saveWorkspace()
 }
 
-export function exportSidecarFiles(scope: string): {
-  written: number
-  captions: number
-  skipped: number
-} {
+export function exportSidecarFiles(scope: string): { written: number; skipped: number } {
   const state = db.loadWorkspace()
   const images =
     scope === 'all' ? state.images : state.images.filter((image) => image.datasetId === scope)
 
+  const preferCaption = state.settings.outputFormat === 'nl'
+
   let written = 0
-  let captions = 0
   let skipped = 0
 
   for (const image of images) {
-    if (image.tags.length === 0 && !image.caption) {
+    // 内容跟着输出模式走：标签模式写逗号分隔的标签串，描述模式写那句话。
+    // 该模式没内容就退回另一种，两种都空就跳过。
+    const primary = preferCaption ? (image.caption ?? '') : image.tags.join(', ')
+    const secondary = preferCaption ? image.tags.join(', ') : (image.caption ?? '')
+    const body = (primary.trim() ? primary : secondary).trim()
+
+    if (!body) {
       skipped += 1
       continue
     }
 
     const base = image.path.replace(/\.[^./\\]+$/, '')
     try {
-      if (image.tags.length > 0) {
-        writeFileSync(`${base}.txt`, image.tags.join(', '), 'utf8')
-        written += 1
-      }
-      if (image.caption) {
-        writeFileSync(`${base}.caption`, image.caption, 'utf8')
-        captions += 1
-      }
+      writeFileSync(`${base}.txt`, body, 'utf8')
+      written += 1
     } catch {
       skipped += 1
     }
   }
 
-  return { written, captions, skipped }
+  return { written, skipped }
 }

@@ -5,6 +5,7 @@ import type {
   Dataset,
   EndpointConfig,
   ImageTagPatch,
+  PromptTemplate,
   RawMetadata,
   ScanProgress,
   StartTaggingResult,
@@ -41,7 +42,7 @@ const api = {
     add: (path?: string): Promise<Dataset | null> => ipcRenderer.invoke('datasets:add', path),
     rescan: (id: string): Promise<Dataset> => ipcRenderer.invoke('datasets:rescan', id),
     remove: (id: string): Promise<WorkspaceSnapshot> => ipcRenderer.invoke('datasets:remove', id),
-    exportTags: (scope: string): Promise<{ written: number; captions: number; skipped: number }> =>
+    exportTags: (scope: string): Promise<{ written: number; skipped: number }> =>
       ipcRenderer.invoke('datasets:export-tags', scope),
     onScanProgress: (cb: (progress: ScanProgress) => void) => {
       const listener = (_e: unknown, progress: ScanProgress): void => cb(progress)
@@ -87,6 +88,15 @@ const api = {
       ipcRenderer.invoke('endpoints:remove', id),
     activate: (id: string): Promise<WorkspaceSnapshot> =>
       ipcRenderer.invoke('endpoints:activate', id)
+  },
+  prompts: {
+    upsert: (patch: Partial<PromptTemplate>): Promise<WorkspaceSnapshot> =>
+      ipcRenderer.invoke('prompts:upsert', patch),
+    remove: (id: string): Promise<WorkspaceSnapshot> =>
+      ipcRenderer.invoke('prompts:remove', id),
+    activate: (id: string): Promise<WorkspaceSnapshot> =>
+      ipcRenderer.invoke('prompts:activate', id),
+    reset: (id: string): Promise<WorkspaceSnapshot> => ipcRenderer.invoke('prompts:reset', id)
   },
   images: {
     raw: (imageId: string): Promise<RawMetadata | null> =>
