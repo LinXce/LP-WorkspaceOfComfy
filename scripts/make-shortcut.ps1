@@ -21,13 +21,13 @@ $shell = New-Object -ComObject WScript.Shell
 
 foreach ($dir in $locations) {
   if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-  $linkPath = Join-Path $dir 'ComfyUI Workspace.lnk'
+  $linkPath = Join-Path $dir 'LP-Tagger.lnk'
 
   $link = $shell.CreateShortcut($linkPath)
   $link.TargetPath = $target
   $link.WorkingDirectory = $root
   $link.IconLocation = "$icon,0"
-  $link.Description = 'ComfyUI Workspace'
+  $link.Description = 'LP-Tagger'
   $link.Save()
 
   Write-Output "created $linkPath"

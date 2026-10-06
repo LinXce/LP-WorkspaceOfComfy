@@ -210,7 +210,7 @@ export function HomeView(): React.JSX.Element {
             >
               <BrandMark size={38} />
               <div className="min-w-0 flex-1">
-                <h2 className="text-[15px] font-semibold leading-5 text-ink">ComfyUI 工作台</h2>
+                <h2 className="text-[15px] font-semibold leading-5 text-ink">LP-Tagger</h2>
                 <p className="truncate text-2xs text-ink-soft">
                   {datasets.length} 个数据集 · {formatCount(images.length)} 张图片 ·{' '}
                   {formatCount(tags.length)} 个标签词条，全部保存在本机

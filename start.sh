@@ -11,7 +11,7 @@ case "$MODE" in
   -h|--help)
     cat <<'EOF'
 
-  ComfyUI 工作台 启动器
+  LP-Tagger 启动器
 
   ./start.sh              安装依赖/构建/启动（默认）
   ./start.sh --dev        开发模式（热更新）
@@ -74,13 +74,13 @@ make_shortcut() {
 
   chmod +x "$launcher" 2>/dev/null || true
 
-  entry="$root/ComfyUI Workspace.desktop"
+  entry="$root/LP-Tagger.desktop"
   cat > "$entry" <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=ComfyUI Workspace
-Comment=ComfyUI workspace launcher
+Name=LP-Tagger
+Comment=LP-Tagger launcher
 Exec=$launcher
 Path=$root
 Icon=$icon
@@ -92,11 +92,11 @@ EOF
 
   apps="$HOME/.local/share/applications"
   if mkdir -p "$apps" 2>/dev/null; then
-    cp "$entry" "$apps/comfyui-workspace.desktop"
+    cp "$entry" "$apps/lp-tagger.desktop"
     command -v update-desktop-database >/dev/null 2>&1 &&
       update-desktop-database "$apps" >/dev/null 2>&1
-    echo "已安装到 $apps/comfyui-workspace.desktop"
-    echo "在应用列表里搜索「ComfyUI」即可看到图标。"
+    echo "已安装到 $apps/lp-tagger.desktop"
+    echo "在应用列表里搜索「LP-Tagger」即可看到图标。"
   fi
 
   if [ "$(uname)" = "Darwin" ]; then
@@ -131,7 +131,7 @@ case "$MODE" in
     ;;
   *)
     ensure_ready
-    echo "正在启动 ComfyUI 工作台..."
+    echo "正在启动 LP-Tagger..."
     exec "$(electron_bin)" .
     ;;
 esac

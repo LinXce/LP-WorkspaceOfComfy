@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * ComfyUI 工作台 — v1.0.0 功能检测
+ * LP-Tagger — v1.1.1 功能检测
  *
  * 起一个**隔离数据目录**的应用实例，连 CDP 跑一遍主流程，逐项打勾。
- * 用 --user-data-dir 指到临时目录，绝不碰 %APPDATA%\ComfyUI Workspace 里的真实数据。
+ * 用 --user-data-dir 指到临时目录，绝不碰 %APPDATA%\LP-Tagger 里的真实数据。
  *
  *   node scripts/smoke-test.mjs
  *   node scripts/smoke-test.mjs --keep    失败时保留临时目录，方便翻 workspace.json
@@ -235,7 +235,7 @@ function cleanup() {
 }
 
 async function main() {
-  console.log('ComfyUI 工作台 — 功能检测\n')
+  console.log('LP-Tagger — 功能检测\n')
   console.log(`隔离数据目录：${userData}\n`)
 
   mkdirSync(userData, { recursive: true })

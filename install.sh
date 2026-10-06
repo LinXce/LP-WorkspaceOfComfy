@@ -2,7 +2,7 @@
 set -e
 cd "$(dirname "$0")"
 
-# ComfyUI 工作台 — 安装脚本（Linux / macOS）
+# LP-Tagger — 安装脚本（Linux / macOS）
 # 装依赖 → 校验 Electron 二进制 → 构建，可选生成启动项与打包。
 
 MIRROR_ELECTRON="https://npmmirror.com/mirrors/electron/"
@@ -20,7 +20,7 @@ for arg in "$@"; do
     -h|--help)
       cat <<'EOF'
 
-  ComfyUI 工作台 — 安装脚本
+  LP-Tagger — 安装脚本
 
   ./install.sh              安装依赖并构建
   ./install.sh --clean      删掉 node_modules，用 npm ci 重装
@@ -35,7 +35,7 @@ EOF
 done
 
 echo "============================================"
-echo " ComfyUI 工作台 — 安装"
+echo " LP-Tagger — 安装"
 echo "============================================"
 echo
 

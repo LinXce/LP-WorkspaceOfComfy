@@ -14,7 +14,7 @@ const isDev = !app.isPackaged
  *
  * 带 --user-data-dir 启动时不覆盖，留给自动化测试用独立目录，免得碰到真实数据。
  */
-app.setName('ComfyUI Workspace')
+app.setName('LP-Tagger')
 
 const hasUserDataOverride = process.argv.some(
   (arg, index) =>
@@ -24,7 +24,7 @@ const hasUserDataOverride = process.argv.some(
 )
 
 if (!hasUserDataOverride) {
-  app.setPath('userData', join(app.getPath('appData'), 'ComfyUI Workspace'))
+  app.setPath('userData', join(app.getPath('appData'), 'LP-Tagger'))
 }
 
 protocol.registerSchemesAsPrivileged([
@@ -53,7 +53,7 @@ function createWindow(): void {
     hasShadow: true,
     // 画布色（tokens.css 的 --bg-canvas），避免启动瞬间闪一下白底
     backgroundColor: '#0D131A',
-    title: 'ComfyUI 工作台',
+    title: 'LP-Tagger',
     ...(existsSync(devIcon) ? { icon: devIcon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -91,14 +91,16 @@ ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized() ?? false)
 
 ipcMain.handle('app:info', () => ({
   version: app.getVersion(),
-  name: 'ComfyUI 工作台',
+  name: 'LP-Tagger',
   platform: process.platform,
   userData: app.getPath('userData')
 }))
 
 void app.whenReady().then(() => {
   nativeTheme.themeSource = 'dark'
-  migrateLegacyDataDir()
+  // 显式指定了 --user-data-dir（自动化测试用独立目录）就不要搬旧数据，
+  // 否则真实目录会被拷进隔离目录，测试就不再隔离了。
+  if (!hasUserDataOverride) migrateLegacyDataDir()
   loadWorkspace()
 
   protocol.handle('thumb', (request) => {

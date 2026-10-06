@@ -1,5 +1,5 @@
-appId: com.linxce.comfy-workspace
-productName: ComfyUI Workspace
+appId: com.linxce.lp-tagger
+productName: LP-Tagger
 copyright: Copyright © 2026 LP
 directories:
   buildResources: build
@@ -19,15 +19,15 @@ win:
     - target: portable
       arch: [x64]
 nsis:
-  artifactName: ComfyUI-Workspace-${version}-setup.${ext}
+  artifactName: LP-Tagger-${version}-setup.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: ComfyUI 工作台
+  shortcutName: LP-Tagger
 portable:
-  artifactName: ComfyUI-Workspace-${version}-portable.${ext}
+  artifactName: LP-Tagger-${version}-portable.${ext}
 mac:
   icon: build/icon.png
   target: [dmg]

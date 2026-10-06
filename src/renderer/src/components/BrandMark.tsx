@@ -14,7 +14,7 @@ export function BrandMark({
       viewBox="0 0 512 512"
       className={className}
       role="img"
-      aria-label="ComfyUI 工作台"
+      aria-label="LP-Tagger"
     >
       <rect width="512" height="512" rx={radius} fill="#F2EFEA" />
       <circle cx="106" cy="256" r="78" fill="#2A8FCE" />

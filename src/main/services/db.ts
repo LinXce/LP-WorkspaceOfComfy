@@ -120,24 +120,30 @@ export function resetWorkspaceState(): void {
 }
 
 /**
- * 老版本（dev 直跑）把数据放在 %APPDATA%/lp-workspace-of-comfy，
+ * 项目改过几次名，数据目录也跟着变（lp-workspace-of-comfy → ComfyUI Workspace → LP-Tagger）。
  * 统一目录名之后搬一次过去，否则用户看到的就是「数据集被清空了」。
  * 只在目标目录还没有自己的 workspace.json 时搬，且用拷贝不用移动，旧目录留作兜底。
  */
+const LEGACY_DATA_DIRS = ['ComfyUI Workspace', 'lp-workspace-of-comfy']
+
 export function migrateLegacyDataDir(): void {
   const current = app.getPath('userData')
-  const legacy = join(app.getPath('appData'), 'lp-workspace-of-comfy')
-  if (resolve(legacy) === resolve(current)) return
-  if (!existsSync(join(legacy, 'data', 'workspace.json'))) return
   if (existsSync(join(current, 'data', 'workspace.json'))) return
 
-  try {
-    ensureDir(current)
-    cpSync(join(legacy, 'data'), join(current, 'data'), { recursive: true })
-    if (existsSync(join(legacy, 'thumbnails'))) {
-      cpSync(join(legacy, 'thumbnails'), join(current, 'thumbnails'), { recursive: true })
+  for (const name of LEGACY_DATA_DIRS) {
+    const legacy = join(app.getPath('appData'), name)
+    if (resolve(legacy) === resolve(current)) continue
+    if (!existsSync(join(legacy, 'data', 'workspace.json'))) continue
+
+    try {
+      ensureDir(current)
+      cpSync(join(legacy, 'data'), join(current, 'data'), { recursive: true })
+      if (existsSync(join(legacy, 'thumbnails'))) {
+        cpSync(join(legacy, 'thumbnails'), join(current, 'thumbnails'), { recursive: true })
+      }
+    } catch {
+      // 搬不动就照常启动，不因为这个挡住用户
     }
-  } catch {
-    // 搬不动就照常启动，不因为这个挡住用户
+    return
   }
 }

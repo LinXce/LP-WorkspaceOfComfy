@@ -53,7 +53,7 @@ export function NavRail(): React.JSX.Element {
       className="rail-glass relative flex w-[var(--rail-w)] shrink-0 flex-col items-stretch py-3"
     >
       <div className="mb-2.5 flex justify-center">
-        <Tooltip side="right" label="ComfyUI 工作台">
+        <Tooltip side="right" label="LP-Tagger">
           <span className="flex size-9 items-center justify-center overflow-hidden rounded-pill shadow-[inset_0_1px_0_0_oklch(1_0_0/0.35),0_4px_12px_-4px_oklch(0_0_0/0.5)]">
             <BrandMark size={38} />
           </span>

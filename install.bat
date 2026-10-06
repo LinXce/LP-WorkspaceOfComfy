@@ -3,10 +3,10 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-rem ComfyUI Workspace - installer
+rem LP-Tagger - installer
 rem Console output is English on purpose: cmd.exe mangles UTF-8 Chinese.
 
-title ComfyUI Workspace - Installer
+title LP-Tagger - Installer
 
 set "MIRROR_ELECTRON=https://npmmirror.com/mirrors/electron/"
 set "MIRROR_BUILDER=https://npmmirror.com/mirrors/electron-builder-binaries/"
@@ -28,7 +28,7 @@ goto parse
 :parsed
 
 echo ============================================
-echo  ComfyUI Workspace - installer
+echo  LP-Tagger - installer
 echo ============================================
 echo.
 
@@ -118,7 +118,7 @@ echo         Common fix: run install.bat --clean to start over.
 exit /b 1
 
 :help
-echo ComfyUI Workspace - installer
+echo LP-Tagger - installer
 echo.
 echo   install.bat              install dependencies and build
 echo   install.bat --clean      wipe node_modules, install with npm ci

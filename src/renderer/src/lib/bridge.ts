@@ -8,7 +8,7 @@ export interface AppInfo {
 const FALLBACK_APP_INFO: AppInfo = {
   // 版本留空而不是写死，取不到时界面显示「—」，免得发版后还显示旧版本号
   version: '',
-  name: 'ComfyUI 工作台',
+  name: 'LP-Tagger',
   platform: 'web',
   userData: ''
 }

@@ -148,7 +148,7 @@ export function SettingsInspector(): React.JSX.Element {
         <div className="flex items-start gap-2 rounded-control border border-line-soft bg-inset p-2.5">
           <Server size={14} className="mt-px shrink-0 text-ink-faint" />
           <div className="min-w-0">
-            <p className="text-xs text-ink">{info?.name ?? 'ComfyUI 工作台'}</p>
+            <p className="text-xs text-ink">{info?.name ?? 'LP-Tagger'}</p>
             <p className="num text-2xs text-ink-faint">版本 {info?.version || '—'}</p>
             <p className="mt-1 text-2xs text-ink-faint">
               平台 {info?.platform ?? '—'}

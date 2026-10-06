@@ -42,7 +42,7 @@ if not exist "out\main\index.js" (
   )
 )
 
-echo Starting ComfyUI Workspace...
+echo Starting LP-Tagger...
 start "" "%~dp0node_modules\electron\dist\electron.exe" "%~dp0."
 exit /b 0
 

@@ -1,4 +1,4 @@
-ComfyUI 工作台 · 启动器
+LP-Tagger · 启动器
 
   安装
   install.bat                  装依赖 + 校验 Electron 二进制 + 构建（推荐先跑这个）
@@ -26,7 +26,7 @@ ComfyUI 工作台 · 启动器
   Electron 的二进制默认从 GitHub 下载，网络不通时会超时并连带整次安装回滚，
   所以安装脚本和启动器都默认走 npmmirror 镜像。想换源就先设 ELECTRON_MIRROR。
 
-  数据都在 %APPDATA%\ComfyUI Workspace 里（workspace.json 是索引与标签，
+  数据都在 %APPDATA%\LP-Tagger 里（workspace.json 是索引与标签，
   endpoints.json 是 API 配置）。想换位置可以用 --user-data-dir=<目录> 启动。
 
   Windows 的 .bat 文件本身不能带图标，所以 --shortcut 会生成一个
